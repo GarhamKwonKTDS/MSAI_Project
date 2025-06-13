@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-def load_conversation_config(config_path: str = "config/conversation_config.json") -> Dict[str, Any]:
+def load_conversation_config(config_path: str = "configs/conversation_config.json") -> Dict[str, Any]:
     """
     대화 설정 파일 로딩
     
