@@ -1,0 +1,22 @@
+{
+    "name": "oss-chatbot-frontend",
+    "version": "1.0.0",
+    "description": "OSS VoC 지원 챗봇 Frontend",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "NODE_ENV=development node server.js",
+        "prod": "NODE_ENV=production node server.js"
+    },
+    "keywords": [
+        "chatbot",
+        "oss",
+        "frontend",
+        "nodejs"
+    ],
+    "author": "Your Name",
+    "license": "MIT",
+    "engines": {
+        "node": ">=14.0.0"
+    }
+}

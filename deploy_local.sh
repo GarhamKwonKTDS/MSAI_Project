@@ -160,11 +160,9 @@ echo "🐍 Setting up Python virtual environment..."
 if command -v python3 &> /dev/null; then
     python3 -m venv venv
     source venv/bin/activate
-    
-    # Create requirements.txt if it doesn't exist
-    if [ ! -f "requirements.txt" ]; then
-        echo "📄 Creating requirements.txt..."
-        cat > requirements.txt << EOF
+
+    echo "📄 Creating requirements.txt..."
+    cat > chatbot_backend/requirements.txt << EOF
 flask==3.0.0
 flask-cors==4.0.0
 langchain>=0.1.17
@@ -177,12 +175,11 @@ openai>=1.55.3
 httpx>=0.28
 pydantic>=2.0.0
 EOF
-    fi
     
     # Install required packages
     echo "📦 Installing required packages..."
     pip install --upgrade pip
-    pip install -r requirements.txt
+    pip install -r chatbot_backend/requirements.txt
     
     echo "✅ Virtual environment and packages installed"
     deactivate
@@ -210,7 +207,7 @@ echo "🛠️ Creating development scripts..."
 # Create run-local.sh script
 cat > run-local.sh << 'EOF'
 #!/bin/bash
-echo "🚀 Starting OSS Chatbot locally..."
+echo "🚀 Starting OSS Chatbot (Backend + Frontend)..."
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
@@ -224,111 +221,72 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# Function to check if port is in use
-check_port() {
-    local port=$1
-    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
-        return 0  # Port is in use
-    else
-        return 1  # Port is free
-    fi
-}
-
-# Function to find next available port
-find_available_port() {
-    local start_port=$1
-    local port=$start_port
-    
-    while check_port $port; do
-        port=$((port + 1))
-        if [ $port -gt $((start_port + 10)) ]; then
-            echo "❌ No available ports found in range $start_port-$((start_port + 10))"
-            exit 1
-        fi
-    done
-    
-    echo $port
-}
-
-# Get port from .env or default to 5001
-DEFAULT_PORT=$(grep "PORT=" .env | cut -d'=' -f2 || echo "5001")
-
-# Check if default port is available
-if check_port $DEFAULT_PORT; then
-    echo "⚠️ Port $DEFAULT_PORT is already in use!"
-    
-    # Show what's using the port
-    echo "Process using port $DEFAULT_PORT:"
-    lsof -Pi :$DEFAULT_PORT -sTCP:LISTEN 2>/dev/null || echo "  (unable to identify process)"
-    
-    # Find next available port
-    AVAILABLE_PORT=$(find_available_port $((DEFAULT_PORT + 1)))
-    echo "✅ Found available port: $AVAILABLE_PORT"
-    
-    # Ask user what to do
-    echo ""
-    echo "Options:"
-    echo "  1. Use port $AVAILABLE_PORT (recommended)"
-    echo "  2. Stop the process using port $DEFAULT_PORT"
-    echo "  3. Exit and handle manually"
-    read -p "Choose option (1-3): " -n 1 -r
-    echo
-    
-    case $REPLY in
-        1)
-            USE_PORT=$AVAILABLE_PORT
-            echo "Using port $USE_PORT"
-            ;;
-        2)
-            echo "Attempting to stop process on port $DEFAULT_PORT..."
-            PID=$(lsof -ti :$DEFAULT_PORT)
-            if [ -n "$PID" ]; then
-                kill -9 $PID 2>/dev/null
-                sleep 2
-                if check_port $DEFAULT_PORT; then
-                    echo "❌ Failed to stop process. Using port $AVAILABLE_PORT instead."
-                    USE_PORT=$AVAILABLE_PORT
-                else
-                    echo "✅ Process stopped. Using port $DEFAULT_PORT"
-                    USE_PORT=$DEFAULT_PORT
-                fi
-            else
-                echo "❌ Could not identify process. Using port $AVAILABLE_PORT instead."
-                USE_PORT=$AVAILABLE_PORT
-            fi
-            ;;
-        3)
-            echo "❌ Exiting. Please handle the port conflict manually."
-            exit 1
-            ;;
-        *)
-            echo "Invalid option. Using port $AVAILABLE_PORT"
-            USE_PORT=$AVAILABLE_PORT
-            ;;
-    esac
-else
-    USE_PORT=$DEFAULT_PORT
+# Check if frontend directory exists
+if [ ! -d "chatbot_frontend" ]; then
+    echo "❌ chatbot_frontend directory not found!"
+    exit 1
 fi
 
-# Activate virtual environment
-source venv/bin/activate
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js not found! Please install Node.js to run the frontend."
+    exit 1
+fi
 
-# Load environment variables and run Flask app
-echo "🌐 Starting Flask development server..."
-echo "📱 App will be available at: http://localhost:$USE_PORT"
-echo "🏥 Health check: http://localhost:$USE_PORT/health"
-echo "💬 Chat API: POST http://localhost:$USE_PORT/chat"
-echo ""
-echo "Press Ctrl+C to stop the server"
-echo ""
+# Function to cleanup on exit
+cleanup() {
+    echo ""
+    echo "🛑 Shutting down servers..."
+    if [ ! -z "$BACKEND_PID" ]; then
+        kill $BACKEND_PID 2>/dev/null || true
+    fi
+    if [ ! -z "$FRONTEND_PID" ]; then
+        kill $FRONTEND_PID 2>/dev/null || true
+    fi
+    echo "✅ Servers stopped"
+    exit 0
+}
+
+# Set trap for cleanup
+trap cleanup SIGINT SIGTERM
+
+# Start Backend
+echo "🐍 Starting Flask backend..."
+source venv/bin/activate
 
 export FLASK_ENV=development
 export FLASK_DEBUG=true
-export PORT=$USE_PORT
-python app.py
+export PORT=8080
 
-# Deactivate when done
-deactivate
+python chatbot_backend/app.py &
+BACKEND_PID=$!
+
+# Wait a moment for backend to start
+sleep 3
+
+# Start Frontend
+echo "🌐 Starting Node.js frontend..."
+
+export API_BASE_URL=http://localhost:8080
+export PORT=8081
+export NODE_ENV=development
+
+node chatbot_frontend/server.js &
+FRONTEND_PID=$!
+
+# Display status
+echo ""
+echo "🎉 Both servers started successfully!"
+echo "================================="
+echo "📱 Frontend: http://localhost:8081"
+echo "🔗 Backend API: http://localhost:8080"
+echo "🏥 Health Check: http://localhost:8080/health"
+echo ""
+echo "Press Ctrl+C to stop both servers"
+echo ""
+
+# Wait for either process to exit
+wait $BACKEND_PID $FRONTEND_PID
 EOF
 
 chmod +x run-local.sh
