@@ -258,8 +258,10 @@ export FLASK_ENV=development
 export FLASK_DEBUG=true
 export PORT=8080
 
-python chatbot_backend/app.py &
+cd chatbot_backend
+python app.py &
 BACKEND_PID=$!
+cd ..
 
 # Wait a moment for backend to start
 sleep 3
@@ -271,8 +273,10 @@ export API_BASE_URL=http://localhost:8080
 export PORT=8081
 export NODE_ENV=development
 
-node chatbot_frontend/server.js &
+cd chatbot_frontend
+node server.js &
 FRONTEND_PID=$!
+cd ..
 
 # Display status
 echo ""

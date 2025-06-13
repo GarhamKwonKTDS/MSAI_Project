@@ -1,0 +1,50 @@
+{
+    "conversation_flow": {
+        "issue_classification": {
+            "prompt_template": "사용자가 시스템 문제를 겪고 있습니다. 사용자의 메시지 '{user_message}'를 바탕으로, 이것이 어떤 문제 카테고리에 해당하는지 결정하세요. 단순한 키워드가 아닌 맥락과 의도를 고려하세요.",
+            "confidence_threshold": 0.7,
+            "fallback_action": "명확화_질문하기",
+            "max_classification_attempts": 2
+        },
+        "case_narrowing": {
+            "prompt_template": "문제 '{issue}'와 사용자의 메시지 '{user_message}'를 바탕으로, 이것이 어떤 구체적인 케이스를 나타내는지 결정하세요. 현재 대화 맥락: {conversation_context}",
+            "information_gathering_strategy": "한 번에 하나의 집중된 질문을 하여 점진적으로 맥락을 구축하세요. 대화체 언어를 사용하고 왜 묻는지 설명하세요.",
+            "confidence_threshold": 0.8,
+            "max_questions_per_case": 4,
+            "question_selection_strategy": "progressive"
+        },
+        "solution_delivery": {
+            "prompt_template": "사용자가 케이스 '{case}'를 가지고 있고 맥락은 다음과 같습니다: {gathered_info}. 솔루션 프레임워크를 사용하여 그들의 구체적인 상황을 다루는 도움이 되고 개인화된 응답을 제공하세요.",
+            "personalization": true,
+            "follow_up_strategy": "솔루션이 작동했는지 항상 묻고 추가 도움을 제공하세요",
+            "include_escalation_option": true
+        }
+    },
+    "response_formatting": {
+        "tone": "친근하고 전문적",
+        "language_style": "존댓말",
+        "max_response_length": 500,
+        "include_step_numbers": true,
+        "include_explanations": true
+    },
+    "conversation_management": {
+        "session_timeout_minutes": 30,
+        "max_conversation_turns": 20,
+        "context_retention_turns": 10,
+        "escalation_after_failed_attempts": 3
+    },
+    "fallback_responses": {
+        "classification_unclear": "시스템에 문제가 있으신 것 같네요. 구체적으로 어떤 일이 일어나고 있는지 좀 더 자세히 말씀해 주실 수 있나요?",
+        "need_more_info": "더 나은 도움을 드리기 위해 상황을 좀 더 명확히 이해해야 합니다. ",
+        "escalation": "이 문제는 직접적인 지원이 필요한 것 같습니다. 즉시 해결할 수 있는 담당자와 연결해 드리겠습니다.",
+        "general_error": "요청을 처리하는 데 문제가 있습니다. 도움이 필요한 내용을 다시 설명해 주실 수 있나요?",
+        "session_timeout": "대화가 오랫동안 진행되지 않아 세션이 종료되었습니다. 새로운 질문이 있으시면 언제든지 말씀해 주세요.",
+        "max_turns_reached": "대화가 많이 길어졌네요. 더 효율적인 도움을 위해 담당자와 연결해 드리겠습니다."
+    },
+    "logging_and_analytics": {
+        "track_conversation_flow": true,
+        "track_classification_accuracy": true,
+        "track_resolution_success": true,
+        "track_escalation_reasons": true
+    }
+}

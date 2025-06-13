@@ -1,7 +1,7 @@
-# Flask App - Updated for new library versions
+# Flask App - API Only (No Client-Side Code)
 # app.py
 
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 import json
@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 # ================================
 # Configuration Management
 # ================================
+
+# Load environment variables for local testing
+from dotenv import load_dotenv
+load_dotenv()
 
 @dataclass
 class Config:
@@ -268,93 +272,12 @@ def create_simple_chatbot_graph():
     return app
 
 # ================================
-# Flask Routes
+# Flask Routes (API Only)
 # ================================
-
-@app.route('/')
-def index():
-    """채팅 인터페이스"""
-    return render_template_string("""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>OSS 지원 챗봇</title>
-    <meta charset="utf-8">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .chat-box { border: 1px solid #ddd; height: 400px; overflow-y: scroll; padding: 20px; margin: 20px 0; background: #fafafa; border-radius: 5px; }
-        .message { margin: 10px 0; padding: 10px 15px; border-radius: 10px; }
-        .user-message { background-color: #007bff; color: white; text-align: right; margin-left: 20%; }
-        .bot-message { background-color: #f1f1f1; margin-right: 20%; }
-        .input-area { display: flex; gap: 10px; }
-        #messageInput { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #0056b3; }
-        .status { text-align: center; color: #666; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🤖 OSS 지원 챗봇</h1>
-        <div id="chatBox" class="chat-box"></div>
-        <div class="status" id="status"></div>
-        <div class="input-area">
-            <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
-            <button onclick="sendMessage()">전송</button>
-        </div>
-    </div>
-
-    <script>
-        let sessionId = 'session_' + Date.now();
-        
-        function handleKeyPress(e) {
-            if (e.key === 'Enter') sendMessage();
-        }
-        
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            if (!message) return;
-            
-            addMessage('user', message);
-            input.value = '';
-            document.getElementById('status').textContent = '응답을 기다리는 중...';
-            
-            try {
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message, session_id: sessionId })
-                });
-                
-                const data = await response.json();
-                addMessage('bot', data.response || data.error || '응답 없음');
-            } catch (error) {
-                addMessage('bot', '❌ 연결 오류가 발생했습니다.');
-            }
-            
-            document.getElementById('status').textContent = '';
-        }
-        
-        function addMessage(sender, message) {
-            const chatBox = document.getElementById('chatBox');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message ' + sender + '-message';
-            messageDiv.innerHTML = message.replace(/\n/g, '<br>');
-            chatBox.appendChild(messageDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-        
-        addMessage('bot', '안녕하세요! OSS 지원 챗봇입니다. 무엇을 도와드릴까요?');
-    </script>
-</body>
-</html>
-    """)
 
 @app.route('/health')
 def health():
-    """Health check"""
+    """Health check endpoint"""
     return jsonify({
         "status": "healthy",
         "services": {
@@ -436,4 +359,16 @@ except Exception as e:
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    debug_mode = os.getenv('FLASK_ENV', 'production') == 'development'
+    
+    # Check if running locally
+    if not config.azure_openai_endpoint and debug_mode:
+        print("⚠️  WARNING: Azure OpenAI credentials not found!")
+        print("📝 To run locally, create a .env file with:")
+        print("   AZURE_OPENAI_ENDPOINT=your_endpoint")
+        print("   AZURE_OPENAI_KEY=your_key")
+        print("   AZURE_OPENAI_MODEL=gpt-4o-mini")
+        print("   AZURE_SEARCH_ENDPOINT=your_search_endpoint (optional)")
+        print("   AZURE_SEARCH_KEY=your_search_key (optional)")
+    
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
