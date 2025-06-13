@@ -146,7 +146,7 @@ echo "Next steps: App Service and code deployment"
 echo ""
 echo "📱 Creating App Service Plan (Free tier)..."
 APP_SERVICE_PLAN="plan-oss-${TIMESTAMP}"
-APP_NAME="app-oss-${TIMESTAMP}"
+BACKEND_APP_NAME="backend-oss-${TIMESTAMP}"
 
 az appservice plan create \
   --resource-group $RESOURCE_GROUP \
@@ -163,7 +163,7 @@ echo "🌐 Creating Web App..."
 az webapp create \
   --resource-group $RESOURCE_GROUP \
   --plan $APP_SERVICE_PLAN \
-  --name $APP_NAME \
+  --name $BACKEND_APP_NAME \
   --runtime "PYTHON:3.11"
 
 echo "✅ Web App created"
@@ -173,7 +173,7 @@ echo ""
 echo "⚙️ Configuring app settings..."
 az webapp config appsettings set \
   --resource-group $RESOURCE_GROUP \
-  --name $APP_NAME \
+  --name $BACKEND_APP_NAME \
   --settings \
     AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT}" \
     AZURE_OPENAI_KEY="${AZURE_OPENAI_KEY}" \
@@ -187,7 +187,7 @@ az webapp config appsettings set \
 # Set startup command
 az webapp config set \
   --resource-group $RESOURCE_GROUP \
-  --name $APP_NAME \
+  --name $BACKEND_APP_NAME \
   --startup-file "gunicorn --bind=0.0.0.0 --timeout 600 app:app"
 
 echo "✅ App settings configured"
@@ -200,11 +200,11 @@ echo "📦 Preparing deployment package..."
 mkdir -p deployment
 cd deployment
 
-# Copy Flask app (assuming app.py is in parent directory)
-if [ -f ../app.py ]; then
-    cp ../app.py .
+# Copy Flask app (assuming app.py is in chatbot_backend directory)
+if [ -f ../chatbot_backend/app.py ]; then
+    cp ../chatbot_backend/app.py .
 else
-    echo "⚠️ app.py not found in parent directory!"
+    echo "⚠️ app.py not found in chatbot_backend directory!"
 fi
 
 # Create requirements.txt
@@ -230,12 +230,68 @@ cd ..
 echo "🚀 Deploying application..."
 az webapp deployment source config-zip \
   --resource-group $RESOURCE_GROUP \
-  --name $APP_NAME \
+  --name $BACKEND_APP_NAME \
   --src deployment.zip
 
-echo "✅ Application deployed"
+echo "✅ Backend Application Deployed"
 
-# Step 16: Setup Knowledge Base
+# Step 16: Create Frontend Web App
+echo ""
+echo "🌐 Creating Frontend Web App..."
+FRONTEND_APP_NAME="frontend-oss-${TIMESTAMP}"
+
+az webapp create \
+  --resource-group $RESOURCE_GROUP \
+  --plan $APP_SERVICE_PLAN \
+  --name $FRONTEND_APP_NAME \
+  --runtime "NODE:20-lts"
+
+echo "✅ Frontend Web App created"
+
+# Configure Frontend App Settings
+echo ""
+echo "⚙️ Configuring frontend app settings..."
+FRONTEND_API_URL="https://${FRONTEND_APP_NAME}.azurewebsites.net"
+
+az webapp config appsettings set \
+  --resource-group $RESOURCE_GROUP \
+  --name $FRONTEND_APP_NAME \
+  --settings \
+    API_BASE_URL="https://${BACKEND_APP_NAME}.azurewebsites.net" \
+    NODE_ENV="production" \
+    PORT="5000" \
+    SCM_DO_BUILD_DURING_DEPLOYMENT="true"
+
+echo "✅ Frontend app settings configured"
+
+# Deploy Frontend Code
+echo ""
+echo "📦 Preparing frontend deployment package..."
+
+# Create frontend deployment directory
+mkdir -p frontend_deployment
+cd frontend_deployment
+
+# Copy frontend files
+if [ -d ../chatbot_frontend ]; then
+    cp -r ../chatbot_frontend/* .
+else
+    echo "⚠️ chatbot_frontend directory not found!"
+fi
+
+# Create zip package
+zip -r ../frontend_deployment.zip .
+cd ..
+
+echo "🚀 Deploying frontend application..."
+az webapp deployment source config-zip \
+  --resource-group $RESOURCE_GROUP \
+  --name $FRONTEND_APP_NAME \
+  --src frontend_deployment.zip
+
+echo "✅ Frontend Application Deployed"
+
+# Step 17: Setup Knowledge Base
 echo ""
 echo "📚 Setting up knowledge base..."
 
@@ -275,8 +331,9 @@ else
     echo "   You can manually run: python3 setup_search_index.py"
 fi
 
-# Step 17: Final Summary
-APP_URL="https://${APP_NAME}.azurewebsites.net"
+# Step 18: Final Summary
+BACKEND_URL="https://${BACKEND_APP_NAME}.azurewebsites.net"
+FRONTEND_URL="https://${FRONTEND_APP_NAME}.azurewebsites.net"
 
 echo ""
 echo "🎉 Deployment completed successfully!"
@@ -295,15 +352,20 @@ echo "  Endpoint: $SEARCH_ENDPOINT"
 echo "  Index: oss-knowledge-base"
 echo ""
 echo "Web App:"
-echo "  Name: $APP_NAME"
-echo "  URL: $APP_URL"
-echo "  Health Check: ${APP_URL}/health"
+echo "  Name: $BACKEND_APP_NAME"
+echo "  URL: $BACKEND_URL"
+echo "  Health Check: ${BACKEND_URL}/health"
+echo ""
+echo "Frontend Web App:"
+echo "  Name: $FRONTEND_APP_NAME"
+echo "  URL: $FRONTEND_URL"
 echo ""
 
 # Save deployment info
 cat > deployment-info.json << EOF
 {
-  "app_url": "${APP_URL}",
+  "frontend_app_url": "${FRONTEND_URL}",
+  "backend_app_url": "${BACKEND_URL}",
   "resource_group": "${RESOURCE_GROUP}",
   "azure_openai_endpoint": "${AZURE_OPENAI_ENDPOINT}",
   "search_endpoint": "${SEARCH_ENDPOINT}",
@@ -316,4 +378,5 @@ echo "📄 Deployment info saved to deployment-info.json"
 
 echo ""
 echo "🤖 Your OSS chatbot is ready!"
-echo "Test it at: ${APP_URL}"
+echo "Frontend: ${FRONTEND_URL}"
+echo "Backend API: ${BACKEND_URL}"
