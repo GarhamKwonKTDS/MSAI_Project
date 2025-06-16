@@ -55,6 +55,9 @@ def determine_next_state_analysis(state: ChatbotState) -> str:
         str: Name of next node to execute
     """
     
+    logger.info(f"   Current Issue: {state.get('current_issue')}")
+    logger.info(f"   Current Case: {state.get('current_case')}")
+    
     # Route based on conversation progress only
     if not state.get('current_issue'):
         # No issue identified yet

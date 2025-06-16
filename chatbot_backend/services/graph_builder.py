@@ -11,7 +11,7 @@ from models.state import ChatbotState
 # Import all node functions
 from nodes.state_analysis import state_analysis_node,  determine_next_state_analysis
 from nodes.issue_classification import issue_classification_node, determine_next_issue_classification
-from nodes.case_narrowing import case_narrowing_node,  determine_next_case_narrowing
+from nodes.case_narrowing import case_narrowing_node
 from nodes.reply_formulation import reply_formulation_node
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ class VoCChatbotGraphBuilder:
         
         # Wrapper functions that bind config and llm to nodes
         def state_analyzer_wrapper(state: ChatbotState) -> ChatbotState:
-            return state_analyzer_node(state, self.config, self.llm)
+            return state_analysis_node(state, self.config, self.llm)
         
         def issue_classification_wrapper(state: ChatbotState) -> ChatbotState:
             return issue_classification_node(state, self.config, self.llm)
@@ -126,3 +126,30 @@ class VoCChatbotGraphBuilder:
         workflow.add_edge("reply_formulation", END)
         
         logger.info("   🔗 Configured all workflow edges")
+    
+    def get_graph(self) -> StateGraph:
+        """
+        Get the compiled graph (build if not already built)
+        
+        Returns:
+            StateGraph: Compiled graph
+        """
+        if self.graph is None:
+            self.build_graph()
+        return self.graph
+
+    def create_session_config(self, session_id: str) -> Dict[str, Any]:
+        """
+        Create session configuration for LangGraph
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            Dict: Session configuration
+        """
+        return {
+            "configurable": {
+                "thread_id": session_id
+            }
+        }

@@ -2,7 +2,7 @@
 
 import logging
 import json
-from typing import Dict, Any
+from typing import List, Dict, Any
 from langchain_openai import AzureChatOpenAI
 from models.state import ChatbotState, update_state_metadata
 
@@ -98,7 +98,7 @@ def reply_formulation_node(state: ChatbotState, config: Dict[str, Any], llm: Azu
             if matched_case['case_id'] == state['current_case']:
                 case_details = matched_case['case_details']
                 break
-        
+
         if case_details:
             state['final_response'] = _generate_solution_response(state, case_details, config, llm)
         else:
@@ -118,24 +118,24 @@ def _generate_disambiguation_question(state: ChatbotState, matched_cases: List[D
     Generate question to disambiguate between multiple matched cases
     """
     
-    # Build case descriptions
-    case_descriptions = []
-    for i, case in enumerate(matched_cases[:3], 1):  # Limit to top 3
-        case_details = case['case_details']
-        case_descriptions.append(
-            f"케이스 {i}: {case_details.get('case_name')}\n"
-            f"   - 주요 증상: {', '.join(case_details.get('symptoms', [])[:2])}"
-        )
-    
-    prompt = config['reply_formulation']['disambiguation_prompt'].format(
-        user_message=state['user_message'],
-        case_descriptions='\n'.join(case_descriptions)
-    )
-
-    # Append common JSON instruction
-    prompt += "\n\n" + config['conversation_flow']['common']['json_parse_instruction']
-    
     try:
+        # Build case descriptions
+        case_descriptions = []
+        for i, case in enumerate(matched_cases[:3], 1):  # Limit to top 3
+            case_details = case['case_details']
+            case_descriptions.append(
+                f"케이스 {i}: {case_details.get('case_name')}\n"
+                f"   - 주요 증상: {', '.join(case_details.get('symptoms', [])[:2])}"
+            )
+
+        prompt = config['conversation_flow']['reply_formulation']['disambiguation_prompt'].format(
+            user_message=state['user_message'],
+            case_descriptions='\n'.join(case_descriptions)
+        )
+
+        # Append common JSON instruction
+        prompt += "\n\n" + config['conversation_flow']['common']['json_parse_instruction']
+
         response = llm.invoke(prompt)
         result = json.loads(response.content.strip())
         return result.get('question', config['fallback_responses']['need_more_info'])
@@ -150,22 +150,27 @@ def _generate_solution_response(state: ChatbotState, case_details: Dict[str, Any
     """
     Generate personalized solution response based on case details
     """
-    
-    case_name = case_details.get('case_name', '')
-    solution_steps = case_details.get('solution_steps', [])
-    
-    prompt = config['reply_formulation']['solution_generation_prompt'].format(
-        case_name=case_name,
-        user_message=state['user_message'],
-        solution_steps=chr(10).join([f"{i+1}. {step}" for i, step in enumerate(solution_steps)])
-    )
-
-    # Append common JSON instruction
-    prompt += "\n\n" + config['conversation_flow']['common']['json_parse_instruction']
 
     try:
+        # Prepare prompt
+        case_name = case_details.get('case_name', '')
+        solution_steps = case_details.get('solution_steps', [])
+        
+        prompt = config['conversation_flow']['reply_formulation']['solution_generation_prompt'].format(
+            case_name=case_name,
+            user_message=state['user_message'],
+            solution_steps=chr(10).join([f"{i+1}. {step}" for i, step in enumerate(solution_steps)])
+        )
+
+        # Append common JSON instruction
+        prompt += "\n\n" + config['conversation_flow']['common']['json_parse_instruction']
+
         response = llm.invoke(prompt)
-        return response.content.strip()
+        result = json.loads(response.content.strip())
+
+        logger.info(f"Generated solution response: {result.get('response', '')[:100]}...")
+
+        return result.get('response', config['fallback_responses']['general_error'])
     except Exception as e:
         logger.error(f"Solution generation error: {e}")
         # Fallback to showing standard solution steps

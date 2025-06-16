@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 from azure.search.documents import SearchClient
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.models import VectorizedQuery
+from langchain_openai import AzureOpenAIEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +22,15 @@ class AzureSearchService:
         self.key = os.getenv('AZURE_SEARCH_KEY')
         self.index_name = os.getenv('AZURE_SEARCH_INDEX', 'oss-knowledge-base')
         
+        # Embedding configuration
+        self.azure_openai_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+        self.azure_openai_key = os.getenv('AZURE_OPENAI_KEY')
+        self.embedding_model = os.getenv('AZURE_OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
+        
         if not self.endpoint or not self.key:
             logger.warning("Azure Search credentials not found - RAG will be disabled")
             self.client = None
+            self.embeddings = None
             return
             
         try:
@@ -32,10 +39,24 @@ class AzureSearchService:
                 index_name=self.index_name,
                 credential=AzureKeyCredential(self.key)
             )
-            logger.info(f"✅ Azure Search initialized: {self.index_name}")
+            
+            # Initialize embeddings if Azure OpenAI is available
+            if self.azure_openai_endpoint and self.azure_openai_key:
+                self.embeddings = AzureOpenAIEmbeddings(
+                    azure_endpoint=self.azure_openai_endpoint,
+                    api_key=self.azure_openai_key,
+                    azure_deployment=self.embedding_model,
+                    api_version="2024-02-01"
+                )
+                logger.info(f"✅ Azure Search initialized with embeddings: {self.index_name}")
+            else:
+                self.embeddings = None
+                logger.info(f"✅ Azure Search initialized without embeddings: {self.index_name}")
+                
         except Exception as e:
             logger.error(f"❌ Failed to initialize Azure Search: {e}")
             self.client = None
+            self.embeddings = None
     
     def is_available(self) -> bool:
         """Azure Search 서비스 사용 가능 여부 확인"""
@@ -43,7 +64,7 @@ class AzureSearchService:
     
     def search_cases(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """
-        사용자 쿼리로 관련 케이스 검색
+        사용자 쿼리로 관련 케이스 검색 (Hybrid: Vector + Keyword + Semantic)
         
         Args:
             query: 검색 쿼리
@@ -57,11 +78,27 @@ class AzureSearchService:
             return []
             
         try:
-            # 하이브리드 검색 (키워드 + 시맨틱)
+            # Prepare vector query if embeddings are available
+            vector_queries = []
+            if self.embeddings:
+                try:
+                    query_embedding = self.embeddings.embed_query(query)
+                    vector_query = VectorizedQuery(
+                        vector=query_embedding,
+                        k_nearest_neighbors=top_k,
+                        fields="content_vector"
+                    )
+                    vector_queries = [vector_query]
+                    logger.info("🔢 Generated query embedding for hybrid search")
+                except Exception as e:
+                    logger.warning(f"Failed to generate embedding: {e}")
+            
+            # Hybrid search
             results = self.client.search(
                 search_text=query,
+                vector_queries=vector_queries,  # Empty list if no embeddings
                 top=top_k,
-                include_total_results=True,
+                include_total_count=True,
                 search_fields=[
                     "case_name", 
                     "description", 
@@ -81,8 +118,8 @@ class AzureSearchService:
                     "solution_steps",
                     "escalation_triggers"
                 ],
-                query_type="semantic",  # 시맨틱 검색 활성화
-                semantic_configuration_name="default"  # 시맨틱 설정이 있는 경우
+                query_type="semantic",
+                semantic_configuration_name="default"
             )
             
             cases = []
@@ -98,11 +135,13 @@ class AzureSearchService:
                     'questions_to_ask': result.get('questions_to_ask', []),
                     'solution_steps': result.get('solution_steps', []),
                     'escalation_triggers': result.get('escalation_triggers', []),
-                    'score': result.get('@search.score', 0.0)
+                    'score': result.get('@search.score', 0.0),
+                    'semantic_score': result.get('@search.reranker_score', 0.0)
                 }
                 cases.append(case_data)
                 
-            logger.info(f"🔍 Found {len(cases)} cases for query: '{query[:50]}...'")
+            search_type = "hybrid" if vector_queries else "semantic"
+            logger.info(f"🔍 {search_type.capitalize()} search found {len(cases)} cases for query: '{query[:50]}...'")
             return cases
             
         except Exception as e:
@@ -145,8 +184,23 @@ class AzureSearchService:
             return []
             
         try:
+            # Prepare vector query if embeddings are available
+            vector_queries = []
+            if self.embeddings and query:
+                try:
+                    query_embedding = self.embeddings.embed_query(query)
+                    vector_query = VectorizedQuery(
+                        vector=query_embedding,
+                        k_nearest_neighbors=top_k,
+                        fields="content_vector"
+                    )
+                    vector_queries = [vector_query]
+                except Exception as e:
+                    logger.warning(f"Failed to generate embedding for filtered search: {e}")
+            
             results = self.client.search(
                 search_text=query,
+                vector_queries=vector_queries,
                 top=top_k,
                 filter=f"issue_type eq '{issue_type}'",
                 search_fields=[
@@ -163,7 +217,9 @@ class AzureSearchService:
                     "symptoms",
                     "questions_to_ask",
                     "solution_steps"
-                ]
+                ],
+                query_type="semantic",
+                semantic_configuration_name="default"
             )
             
             cases = []
@@ -176,7 +232,8 @@ class AzureSearchService:
                     'symptoms': result.get('symptoms', []),
                     'questions_to_ask': result.get('questions_to_ask', []),
                     'solution_steps': result.get('solution_steps', []),
-                    'score': result.get('@search.score', 0.0)
+                    'score': result.get('@search.score', 0.0),
+                    'semantic_score': result.get('@search.reranker_score', 0.0)
                 }
                 cases.append(case_data)
                 

@@ -6,6 +6,8 @@ from typing import Dict, Any, List
 from langchain_openai import AzureChatOpenAI
 from models.state import ChatbotState, update_state_metadata
 
+from services.azure_search import search_service
+
 logger = logging.getLogger(__name__)
 
 def case_narrowing_node(state: ChatbotState, config: Dict[str, Any], llm: AzureChatOpenAI) -> ChatbotState:
@@ -33,8 +35,6 @@ def case_narrowing_node(state: ChatbotState, config: Dict[str, Any], llm: AzureC
     logger.info(f"   🔍 Generated search query: {search_query}")
     
     # Search for cases within the current issue
-    from services.azure_search import search_service
-    
     try:
         filtered_cases = search_service.filter_cases_by_issue_type(
             query=search_query,
@@ -58,6 +58,7 @@ def case_narrowing_node(state: ChatbotState, config: Dict[str, Any], llm: AzureC
         elif len(matched_cases) == 1:
             logger.info(f"   ✅ Single case matched: {matched_cases[0]['case_id']}")
             state['current_case'] = matched_cases[0]['case_id']
+            state['matched_cases'] = matched_cases
             state['case_confidence'] = matched_cases[0]['confidence']
             
         else:  # 2+ matches
@@ -68,22 +69,6 @@ def case_narrowing_node(state: ChatbotState, config: Dict[str, Any], llm: AzureC
         logger.info("   ❌ No cases found in search")
     
     return state
-
-def determine_next_case_narrowing(state: ChatbotState) -> str:
-    """
-    Determines next node after case narrowing
-    Used by LangGraph conditional_edges
-    
-    Args:
-        state: Current chatbot state
-        
-    Returns:
-        str: Name of next node
-    """
-    
-    # Always go to reply formulation
-    logger.info("   → Routing to: reply_formulation")
-    return "reply_formulation"
 
 def _generate_search_query(state: ChatbotState, config: Dict[str, Any], llm: AzureChatOpenAI) -> str:
     """

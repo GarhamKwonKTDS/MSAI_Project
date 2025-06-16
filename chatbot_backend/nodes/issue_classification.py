@@ -6,6 +6,8 @@ from typing import Dict, Any, List
 from langchain_openai import AzureChatOpenAI
 from models.state import ChatbotState, update_state_metadata
 
+from services.azure_search import search_service
+
 logger = logging.getLogger(__name__)
 
 def issue_classification_node(state: ChatbotState, config: Dict[str, Any], llm: AzureChatOpenAI) -> ChatbotState:
@@ -29,8 +31,6 @@ def issue_classification_node(state: ChatbotState, config: Dict[str, Any], llm: 
     logger.info(f"   User Message: {state['user_message'][:100]}...")
     
     # Search for relevant cases
-    from services.azure_search import search_service
-    
     retrieved_cases = search_service.search_cases(state['user_message'], top_k=5)
     state['retrieved_cases'] = retrieved_cases
     state['rag_used'] = len(retrieved_cases) > 0
@@ -165,6 +165,10 @@ def _classify_with_llm(
 
     try:
         response = llm.invoke(prompt)
+        content = response.content.strip()
+
+        logger.info("LLM Response: %s", content[:200] + "..." if len(content) > 200 else content)
+
         result = json.loads(response.content.strip())
         
         return {

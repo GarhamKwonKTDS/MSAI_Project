@@ -34,7 +34,7 @@ load_dotenv()
 # ================================
 
 llm = None
-chatbot_graph = None
+graph_builder = None
 conversation_config = None
 
 # ================================
@@ -63,7 +63,7 @@ app_config = AppConfig()
 
 def initialize_application():
     """Initialize all application components"""
-    global llm, chatbot_graph, conversation_config
+    global llm, graph_builder, conversation_config
     
     logger.info("🚀 Initializing VoC Chatbot Application...")
     
@@ -110,7 +110,7 @@ def initialize_application():
         
         # 4. Build LangGraph
         graph_builder = VoCChatbotGraphBuilder(conversation_config, llm)
-        chatbot_graph = graph_builder.build_graph()
+        graph_builder.build_graph()
         
         logger.info("✅ LangGraph built successfully")
         
@@ -129,7 +129,7 @@ def initialize_application():
 def health_check():
     """Health check endpoint"""
     return jsonify({
-        "status": "healthy" if chatbot_graph else "unhealthy",
+        "status": "healthy" if graph_builder else "unhealthy",
         "timestamp": datetime.now().isoformat()
     })
 
@@ -137,7 +137,7 @@ def health_check():
 def chat_endpoint():
     """Main chat endpoint"""
     
-    if not chatbot_graph:
+    if not graph_builder:
         return jsonify({
             "error": "Chatbot service is not available",
             "code": "SERVICE_UNAVAILABLE"
@@ -162,12 +162,15 @@ def chat_endpoint():
         initial_state = create_initial_state(user_message, session_id)
         
         # Create session config
-        graph_builder = VoCChatbotGraphBuilder(conversation_config, llm)
         session_config = graph_builder.create_session_config(session_id)
+        chatbot_graph = graph_builder.get_graph()
         
         # Run the graph
         logger.info("🔄 Running LangGraph workflow...")
         final_state = chatbot_graph.invoke(initial_state, config=session_config)
+
+        logger.info("✅ Workflow completed successfully")
+        logger.debug(f"Final state: {final_state}")
         
         # Prepare response
         response = {

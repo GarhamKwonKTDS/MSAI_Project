@@ -121,9 +121,10 @@ def validate_config(config: Dict[str, Any]) -> bool:
         
         # conversation_flow 하위 섹션 체크
         required_flow_sections = [
+            "state_analysis",
             "issue_classification",
             "case_narrowing",
-            "solution_delivery"
+            "reply_formulation"
         ]
         
         for section in required_flow_sections:

@@ -1,4 +1,5 @@
-# setup_search_index.py - Hybrid Vector + Semantic Search Setup
+# Search Index Setup and Knowledge Base Upload
+# setup_search_index.py
 
 import os
 import json
@@ -7,20 +8,14 @@ from azure.search.documents.indexes.models import (
     SearchIndex,
     SimpleField,
     SearchableField,
+    ComplexField,
     SearchFieldDataType,
     VectorSearch,
     VectorSearchProfile,
     HnswAlgorithmConfiguration,
-    SemanticConfiguration,
-    SemanticField,
-    SemanticSearch,
-    SemanticPrioritizedFields,
-    SearchField,
-    VectorSearchAlgorithmKind
 )
 from azure.search.documents import SearchClient
 from azure.core.credentials import AzureKeyCredential
-from langchain_openai import AzureOpenAIEmbeddings
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -31,23 +26,10 @@ SEARCH_ENDPOINT = os.getenv('AZURE_SEARCH_ENDPOINT')
 SEARCH_KEY = os.getenv('AZURE_SEARCH_KEY')
 INDEX_NAME = os.getenv('AZURE_SEARCH_INDEX', 'oss-knowledge-base')
 
-# Embedding configuration
-AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT')
-AZURE_OPENAI_KEY = os.getenv('AZURE_OPENAI_KEY')
-EMBEDDING_MODEL = os.getenv('AZURE_OPENAI_EMBEDDING_MODEL', 'text-embedding-ada-002')
-
-# Initialize embeddings
-embeddings = AzureOpenAIEmbeddings(
-    azure_endpoint=AZURE_OPENAI_ENDPOINT,
-    api_key=AZURE_OPENAI_KEY,
-    azure_deployment=EMBEDDING_MODEL,
-    api_version="2024-02-01"
-)
-
 def create_search_index():
-    """Create the search index with vector and semantic search capabilities"""
+    """Create the search index with proper schema"""
     
-    print(f"🔍 Creating hybrid search index: {INDEX_NAME}")
+    print(f"🔍 Creating search index: {INDEX_NAME}")
     
     # Initialize the index client
     index_client = SearchIndexClient(
@@ -55,7 +37,7 @@ def create_search_index():
         credential=AzureKeyCredential(SEARCH_KEY)
     )
     
-    # Define the index schema with vector field
+    # Define the index schema
     fields = [
         SimpleField(name="id", type=SearchFieldDataType.String, key=True),
         SimpleField(name="issue_type", type=SearchFieldDataType.String, filterable=True),
@@ -63,108 +45,32 @@ def create_search_index():
         SimpleField(name="case_type", type=SearchFieldDataType.String, filterable=True),
         SearchableField(name="case_name", type=SearchFieldDataType.String),
         SearchableField(name="description", type=SearchFieldDataType.String),
+        SearchableField(name="keywords", type=SearchFieldDataType.Collection(SearchFieldDataType.String)),
+        SearchableField(name="symptoms", type=SearchFieldDataType.Collection(SearchFieldDataType.String)),
+        SearchableField(name="questions_to_ask", type=SearchFieldDataType.Collection(SearchFieldDataType.String)),
+        SearchableField(name="solution_steps", type=SearchFieldDataType.Collection(SearchFieldDataType.String)),
+        SearchableField(name="escalation_triggers", type=SearchFieldDataType.Collection(SearchFieldDataType.String)),
         SearchableField(name="search_content", type=SearchFieldDataType.String),
-        
-        # Array fields - using SearchField with Collection type
-        SearchField(
-            name="keywords",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.String),
-            searchable=True
-        ),
-        SearchField(
-            name="symptoms",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.String),
-            searchable=True
-        ),
-        SearchField(
-            name="questions_to_ask",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.String),
-            searchable=True
-        ),
-        SearchField(
-            name="solution_steps",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.String),
-            searchable=True
-        ),
-        SearchField(
-            name="escalation_triggers",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.String),
-            searchable=True
-        ),
-        
-        # Vector field for embeddings (1536 dimensions for ada-002)
-        SearchField(
-            name="content_vector",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-            searchable=True,
-            vector_search_dimensions=1536,
-            vector_search_profile_name="myHnswProfile"
-        )
     ]
     
-    # Configure vector search
-    vector_search = VectorSearch(
-        algorithms=[
-            HnswAlgorithmConfiguration(
-                name="myHnsw",
-                kind=VectorSearchAlgorithmKind.HNSW,
-                parameters={
-                    "m": 4,
-                    "efConstruction": 400,
-                    "efSearch": 500,
-                    "metric": "cosine"
-                }
-            )
-        ],
-        profiles=[
-            VectorSearchProfile(
-                name="myHnswProfile",
-                algorithm_configuration_name="myHnsw"
-            )
-        ]
-    )
-    
-    # Configure semantic search
-    semantic_config = SemanticConfiguration(
-        name="default",
-        prioritized_fields=SemanticPrioritizedFields(
-            title_field=SemanticField(field_name="case_name"),
-            content_fields=[
-                SemanticField(field_name="description"),
-                SemanticField(field_name="search_content")
-            ],
-            keywords_fields=[SemanticField(field_name="keywords")]
-        )
-    )
-    
-    # Create the index with both vector and semantic search
+    # Create the index
     index = SearchIndex(
         name=INDEX_NAME,
-        fields=fields,
-        vector_search=vector_search,
-        semantic_search=SemanticSearch(configurations=[semantic_config])
+        fields=fields
     )
     
     try:
         result = index_client.create_or_update_index(index)
-        print(f"✅ Index '{result.name}' created with hybrid search capabilities!")
+        print(f"✅ Index '{result.name}' created successfully!")
         return True
     except Exception as e:
         print(f"❌ Error creating index: {e}")
         return False
 
-def generate_embeddings(text: str) -> list:
-    """Generate embeddings for text using Azure OpenAI"""
-    try:
-        embedding = embeddings.embed_query(text)
-        return embedding
-    except Exception as e:
-        print(f"❌ Error generating embeddings: {e}")
-        return None
-
 def load_knowledge_base():
     """Load our knowledge base data"""
     
+    # Our knowledge base (the 8 cases we defined earlier)
     knowledge_base = [
         {
             "id": "oss_login_new_account_needed",
@@ -439,10 +345,10 @@ def load_knowledge_base():
     print(f"📚 Loaded {len(knowledge_base)} knowledge base entries")
     return knowledge_base
 
-def upload_knowledge_base_with_embeddings():
-    """Upload knowledge base to Azure AI Search with embeddings"""
+def upload_knowledge_base():
+    """Upload knowledge base to Azure AI Search"""
     
-    print("📤 Uploading knowledge base with embeddings...")
+    print("📤 Uploading knowledge base to Azure AI Search...")
     
     # Initialize search client
     search_client = SearchClient(
@@ -453,20 +359,6 @@ def upload_knowledge_base_with_embeddings():
     
     # Load knowledge base
     documents = load_knowledge_base()
-    
-    # Generate embeddings for each document
-    for doc in documents:
-        # Create combined text for embedding
-        embedding_text = f"{doc['case_name']} {doc['description']} {doc['search_content']}"
-        
-        # Generate embedding
-        print(f"🔄 Generating embedding for: {doc['id']}")
-        embedding = generate_embeddings(embedding_text)
-        
-        if embedding:
-            doc['content_vector'] = embedding
-        else:
-            print(f"⚠️ Failed to generate embedding for {doc['id']}")
     
     try:
         # Upload documents
@@ -490,10 +382,10 @@ def upload_knowledge_base_with_embeddings():
         print(f"❌ Error uploading documents: {e}")
         return False
 
-def test_hybrid_search():
-    """Test the hybrid search functionality"""
+def test_search():
+    """Test the search functionality"""
     
-    print("🧪 Testing hybrid search functionality...")
+    print("🧪 Testing search functionality...")
     
     search_client = SearchClient(
         endpoint=SEARCH_ENDPOINT,
@@ -505,43 +397,26 @@ def test_hybrid_search():
     test_queries = [
         "OSS 로그인이 안 돼요",
         "비밀번호를 잊어버렸어요",
-        "권한이 필요해요"
+        "권한이 필요해요",
+        "업무팀 가입하고 싶어요"
     ]
     
     for query in test_queries:
         print(f"\n🔍 Query: '{query}'")
         
-        # Generate query embedding
-        query_embedding = generate_embeddings(query)
-        
-        if not query_embedding:
-            print("   ❌ Failed to generate query embedding")
-            continue
-        
         try:
-            # Hybrid search: vector + keyword + semantic
-            from azure.search.documents.models import VectorizedQuery
-            
-            vector_query = VectorizedQuery(
-                vector=query_embedding,
-                k_nearest_neighbors=3,
-                fields="content_vector"
-            )
-            
             results = search_client.search(
                 search_text=query,
-                vector_queries=[vector_query],
-                query_type="semantic",
-                semantic_configuration_name="default",
                 top=3,
+                include_total_results=True,
+                search_fields=["case_name", "description", "symptoms", "search_content"],
                 select=["id", "case_name", "description"]
             )
             
-            print(f"   Hybrid search results:")
+            print(f"   Found {results.get_count()} total results:")
             for i, result in enumerate(results, 1):
                 score = result.get('@search.score', 0)
-                reranker_score = result.get('@search.reranker_score', 0)
-                print(f"   {i}. {result['case_name']} (Score: {score:.2f}, Semantic: {reranker_score:.2f})")
+                print(f"   {i}. {result['case_name']} (Score: {score:.2f})")
                 print(f"      {result['description'][:100]}...")
                 
         except Exception as e:
@@ -555,29 +430,23 @@ def main():
         print("Please set AZURE_SEARCH_ENDPOINT and AZURE_SEARCH_KEY environment variables")
         return False
     
-    if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_KEY:
-        print("❌ Missing Azure OpenAI configuration for embeddings!")
-        print("Please set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY environment variables")
-        return False
-    
-    print("🚀 Setting up Azure AI Search with Hybrid Search (Vector + Semantic)...")
-    print(f"   Search Endpoint: {SEARCH_ENDPOINT}")
+    print("🚀 Setting up Azure AI Search for RAG...")
+    print(f"   Endpoint: {SEARCH_ENDPOINT}")
     print(f"   Index: {INDEX_NAME}")
-    print(f"   Embedding Model: {EMBEDDING_MODEL}")
     
-    # Step 1: Create index with vector and semantic capabilities
+    # Step 1: Create index
     if not create_search_index():
         return False
     
-    # Step 2: Upload knowledge base with embeddings
-    if not upload_knowledge_base_with_embeddings():
+    # Step 2: Upload knowledge base
+    if not upload_knowledge_base():
         return False
     
-    # Step 3: Test hybrid search
-    test_hybrid_search()
+    # Step 3: Test search
+    test_search()
     
-    print("\n🎉 Azure AI Search with hybrid search setup completed successfully!")
-    print("Your Flask app can now use vector + semantic search!")
+    print("\n🎉 Azure AI Search setup completed successfully!")
+    print("Your Flask app can now use RAG functionality!")
     
     return True
 

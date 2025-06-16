@@ -70,6 +70,21 @@ az cognitiveservices account deployment create \
 echo ""
 echo "✅ Model deployment complete!"
 
+# Step 5.5: Deploy text-embedding-3-small model
+echo ""
+echo "🔤 Deploying text-embedding-3-small model..."
+az cognitiveservices account deployment create \
+  --resource-group $RESOURCE_GROUP \
+  --name $OPENAI_SERVICE_NAME \
+  --deployment-name "text-embedding-3-small" \
+  --model-name "text-embedding-3-small" \
+  --model-version "1" \
+  --model-format OpenAI \
+  --sku-capacity 10 \
+  --sku-name "Standard"
+
+echo "✅ Embedding model deployment complete!"
+
 # Step 6: Verify deployment
 echo ""
 echo "📋 Verifying model deployment..."
@@ -178,6 +193,7 @@ az webapp config appsettings set \
     AZURE_OPENAI_ENDPOINT="${AZURE_OPENAI_ENDPOINT}" \
     AZURE_OPENAI_KEY="${AZURE_OPENAI_KEY}" \
     AZURE_OPENAI_MODEL="gpt-4o-mini" \
+    AZURE_OPENAI_EMBEDDING_MODEL="text-embedding-3-small" \
     AZURE_SEARCH_ENDPOINT="${SEARCH_ENDPOINT}" \
     AZURE_SEARCH_KEY="${SEARCH_KEY}" \
     AZURE_SEARCH_INDEX="oss-knowledge-base" \
