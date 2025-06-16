@@ -1,9 +1,9 @@
 {
-  "frontend_app_url": "https://frontend-oss-0613-1404.azurewebsites.net",
-  "backend_app_url": "https://backend-oss-0613-1404.azurewebsites.net",
+  "frontend_app_url": "https://frontend-oss-0616-1533.azurewebsites.net",
+  "backend_app_url": "https://backend-oss-0616-1533.azurewebsites.net",
   "resource_group": "rg-oss-chatbot-dev",
   "azure_openai_endpoint": "https://canadaeast.api.cognitive.microsoft.com/",
-  "search_endpoint": "https://search-oss-0613-1404.search.windows.net",
+  "search_endpoint": "https://search-oss-0616-1533.search.windows.net",
   "search_index": "oss-knowledge-base",
-  "deployed_at": "2025-06-13T05:13:32Z"
+  "deployed_at": "2025-06-16T06:43:06Z"
 }

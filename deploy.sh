@@ -217,10 +217,10 @@ mkdir -p deployment
 cd deployment
 
 # Copy Flask app (assuming app.py is in chatbot_backend directory)
-if [ -f ../chatbot_backend/app.py ]; then
-    cp ../chatbot_backend/app.py .
+if [ -d ../chatbot_backend ]; then
+    cp -r ../chatbot_backend/* .
 else
-    echo "⚠️ app.py not found in chatbot_backend directory!"
+    echo "⚠️ chatbot_backend directory not found!"
 fi
 
 # Create requirements.txt
@@ -319,10 +319,17 @@ if command -v python3 &> /dev/null; then
     
     # Install required packages for knowledge base setup
     echo "📦 Installing required packages..."
-    pip install azure-search-documents python-dotenv
+    pip install azure-search-documents python-dotenv langchain-openai
     
     # Create temporary environment file for the setup script
     cat > .env << EOF
+# Azure OpenAI Configuration
+AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+AZURE_OPENAI_KEY=${AZURE_OPENAI_KEY}
+AZURE_OPENAI_MODEL=gpt-4o-mini
+AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+# Azure AI Search Configuration
 AZURE_SEARCH_ENDPOINT=${SEARCH_ENDPOINT}
 AZURE_SEARCH_KEY=${SEARCH_KEY}
 AZURE_SEARCH_INDEX=oss-knowledge-base

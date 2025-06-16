@@ -200,12 +200,14 @@ def chat_endpoint():
 # Main
 # ================================
 
+if not initialize_application():
+    logger.error("❌ Failed to initialize application")
+else:
+    logger.info("✅ Application initialized successfully")
+
 if __name__ == '__main__':
-    # Initialize on startup
-    if not initialize_application():
-        logger.error("❌ Failed to initialize application")
     
-    # Run Flask app
+    # Run Flask app locally
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_ENV', 'production') == 'development'
     
