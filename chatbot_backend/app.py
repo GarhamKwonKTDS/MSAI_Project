@@ -165,12 +165,35 @@ def chat_endpoint():
         
         logger.info(f"💬 Chat request - Session: {session_id[:8]}..., Message: {user_message[:50]}...")
         
-        # Create initial state
-        initial_state = create_initial_state(user_message, session_id)
-        
         # Create session config
         session_config = graph_builder.create_session_config(session_id)
         chatbot_graph = graph_builder.get_graph()
+        
+        # Check for existing state
+        existing_state = None
+        try:
+            state_snapshot = chatbot_graph.get_state(session_config)
+            if state_snapshot and state_snapshot.values:
+                existing_state = state_snapshot.values
+                logger.info(f"✅ Retrieved existing state for session {session_id[:8]}...")
+                logger.info(f"   Current issue: {existing_state.get('current_issue')}")
+                logger.info(f"   Current case: {existing_state.get('current_case')}")
+        except Exception as e:
+            logger.info(f"ℹ️ No existing state found for session {session_id[:8]}...")
+        
+        # Create or update state
+        if existing_state:
+            # Update existing state with new message
+            initial_state = existing_state.copy()
+            initial_state['user_message'] = user_message
+            initial_state['conversation_history'].append({
+                "role": "user",
+                "content": user_message
+            })
+            initial_state['conversation_turn'] = initial_state.get('conversation_turn', 0) + 1
+        else:
+            # Create new initial state
+            initial_state = create_initial_state(user_message, session_id)
         
         # Run the graph
         logger.info("🔄 Running LangGraph workflow...")
