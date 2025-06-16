@@ -270,6 +270,33 @@ body {
     color: #64748b;
 }
 
+.processing-status {
+    display: none;
+    align-items: center;
+    margin: 10px 20px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.processing-status.show {
+    display: flex;
+}
+
+.status-content {
+    background: #f0f9ff;
+    border: 1px solid #0ea5e9;
+    color: #0369a1;
+    padding: 10px 16px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.status-icon {
+    animation: pulse 1s infinite;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     body {

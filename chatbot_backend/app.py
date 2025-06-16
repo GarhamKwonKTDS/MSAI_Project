@@ -3,17 +3,16 @@
 import os
 import logging
 import json
+import asyncio
 from typing import Dict, Any
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_openai import AzureChatOpenAI
-from services.azure_search import search_service
-from services.graph_builder import VoCChatbotGraphBuilder
 
 from models.state import create_initial_state
-from utils.helpers import validate_config
+from utils.helpers import validate_config, format_sse, sanitize_user_input
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -28,14 +27,6 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
-
-# ================================
-# Global Variables
-# ================================
-
-llm = None
-graph_builder = None
-conversation_config = None
 
 # ================================
 # Configuration
@@ -56,6 +47,18 @@ class AppConfig:
         self.azure_search_index = os.getenv('AZURE_SEARCH_INDEX', 'oss-knowledge-base')
 
 app_config = AppConfig()
+
+# ================================
+# Global Variables
+# ================================
+
+from services.azure_search import search_service
+from services.graph_builder import VoCChatbotGraphBuilder
+from services.stream_handler import stream_handler
+
+llm = None
+graph_builder = None
+conversation_config = None
 
 # ================================
 # Initialization
@@ -110,9 +113,13 @@ def initialize_application():
         
         # 4. Build LangGraph
         graph_builder = VoCChatbotGraphBuilder(conversation_config, llm)
-        graph_builder.build_graph()
+        chatbot_graph = graph_builder.build_graph()
         
         logger.info("✅ LangGraph built successfully")
+
+        # Initialize stream handler with graph instances
+        stream_handler.initialize(graph_builder, chatbot_graph)
+        logger.info("✅ Stream handler initialized")
         
         logger.info("🎉 VoC Chatbot Application initialized successfully!")
         return True
@@ -194,6 +201,85 @@ def chat_endpoint():
         return jsonify({
             "error": "Internal server error",
             "message": str(e) if app.debug else "An error occurred"
+        }), 500
+
+@app.route('/chat/stream', methods=['POST'])
+def chat_stream_endpoint():
+    """Streaming chat endpoint for real-time updates"""
+    
+    if not graph_builder:
+        return jsonify({
+            "error": "Chatbot service is not available",
+            "code": "SERVICE_UNAVAILABLE"
+        }), 503
+    
+    try:
+        # Parse request
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        user_message = data.get('message', '').strip()
+        session_id = data.get('session_id', f"session_{datetime.now().timestamp()}")
+        
+        # Validate input
+        if not user_message:
+            return jsonify({"error": "Message is required"}), 400
+        
+        # Sanitize user input
+        user_message = sanitize_user_input(user_message)
+        if not user_message:
+            return jsonify({"error": "Invalid message content"}), 400
+        
+        logger.info(f"💬 Stream request - Session: {session_id[:8]}..., Message: {user_message[:50]}...")
+        
+        # Create generator for streaming
+        # Create generator for streaming
+        def generate():
+            import asyncio
+            
+            # Create event loop for async processing
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                # Run async generator in sync context
+                async_gen = stream_handler.process_chat_stream(user_message, session_id)
+                
+                while True:
+                    try:
+                        update = loop.run_until_complete(async_gen.__anext__())
+                        
+                        # Determine event type based on content
+                        if "error" in update:
+                            yield format_sse(update, "error")
+                        elif "response" in update:
+                            yield format_sse(update, "complete")
+                        elif "node" in update:
+                            yield format_sse(update, "progress")
+                        else:
+                            yield format_sse(update, "update")
+                            
+                    except StopAsyncIteration:
+                        break
+                        
+            finally:
+                loop.close()
+        
+        return Response(
+            stream_with_context(generate()),
+            mimetype="text/event-stream",
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Stream endpoint error: {e}")
+        return jsonify({
+            "error": "Internal server error",
+            "code": "INTERNAL_ERROR"
         }), 500
 
 # ================================

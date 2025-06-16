@@ -32,6 +32,8 @@ class OSSChatbot {
             "errorMessage",
             "connectionStatus",
             "statusIndicator",
+            "processingStatus",
+            "statusText",
         ];
 
         requiredElements.forEach((id) => {
@@ -177,31 +179,59 @@ class OSSChatbot {
         this.clearInput();
 
         // Show processing state
-        this.showTyping(true);
         this.setProcessing(true);
 
         try {
-            const response = await this.callChatAPI(message);
-            this.addMessage("bot", response.response);
+            // Reset stream response
+            this.state.currentStreamResponse = null;
+            this.state.currentStreamMetadata = null;
 
-            // Show RAG info if enabled and used
-            if (this.config.features.ragInfo && response.rag_used) {
-                this.log("RAG was used for this response");
+            // Call streaming API
+            await this.callChatStreamAPI(message);
+
+            // Wait for final response
+            let waitTime = 0;
+            while (!this.state.currentStreamResponse && waitTime < 30000) {
+                await this.delay(100);
+                waitTime += 100;
             }
 
-            // Store in history
-            this.state.messageHistory.push({
-                user: message,
-                bot: response.response,
-                timestamp: new Date().toISOString(),
-                ragUsed: response.rag_used || false,
-            });
+            if (this.state.currentStreamResponse) {
+                this.addMessage("bot", this.state.currentStreamResponse);
+
+                // Show RAG info if enabled and used
+                if (
+                    this.config.features.ragInfo &&
+                    this.state.currentStreamMetadata?.rag_used
+                ) {
+                    this.log("RAG was used for this response");
+                }
+
+                // Store in history
+                this.state.messageHistory.push({
+                    user: message,
+                    bot: this.state.currentStreamResponse,
+                    timestamp: new Date().toISOString(),
+                    ragUsed:
+                        this.state.currentStreamMetadata?.rag_used || false,
+                    metadata: this.state.currentStreamMetadata,
+                });
+            } else {
+                throw new Error("Timeout waiting for response");
+            }
         } catch (error) {
             this.log("Chat API error", error);
             this.addMessage("bot", this.config.ui.messages.generalError);
         } finally {
             this.showTyping(false);
             this.setProcessing(false);
+            if (this.elements.processingStatus) {
+                this.elements.processingStatus.classList.remove("show");
+                this.elements.processingStatus.style.display = "none";
+            }
+            if (this.elements.typingIndicator) {
+                this.elements.typingIndicator.classList.remove("show");
+            }
         }
     }
 
@@ -248,6 +278,122 @@ class OSSChatbot {
                 return this.callChatAPI(message, retryCount + 1);
             }
             throw error;
+        }
+    }
+
+    async callChatStreamAPI(message) {
+        try {
+            this.log(`Calling streaming chat API`);
+            this.log("Endpoints: ", this.config.api.endpoints);
+
+            const response = await fetch(
+                `${this.apiBaseUrl}${this.config.api.endpoints.stream}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        session_id: this.sessionId,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `HTTP ${response.status}: ${response.statusText}`
+                );
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            this.handleStreamEvent(data);
+                        } catch (e) {
+                            this.log("Failed to parse SSE data", e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            this.log("Stream API error", error);
+            throw error;
+        }
+    }
+
+    handleStreamEvent(data) {
+        this.log("Stream event received", data);
+
+        if (data.status === "started") {
+            // Already showing typing indicator
+        } else if (data.node && data.status === "processing") {
+            // Hide typing dots completely
+            if (this.elements.typingIndicator) {
+                this.elements.typingIndicator.classList.remove("show");
+            }
+            // Show status with node info
+            this.updateTypingIndicator(data.node);
+        } else if (data.response) {
+            // Final response received
+            this.state.currentStreamResponse = data.response;
+            this.state.currentStreamMetadata = data.metadata;
+        } else if (data.error) {
+            // Handle error
+            this.log("Stream error", data.error);
+            this.state.currentStreamResponse =
+                this.config.ui.messages.generalError;
+        }
+    }
+
+    updateTypingIndicator(nodeName) {
+        console.log("🔵 updateTypingIndicator called with:", nodeName);
+        console.log(
+            "🔵 processingStatus element:",
+            this.elements.processingStatus
+        );
+        console.log("🔵 statusText element:", this.elements.statusText);
+
+        const nodeMessages = {
+            state_analyzer: "상태 분석 중...",
+            issue_classification: "문제 분류 중...",
+            case_narrowing: "구체적인 케이스 확인 중...",
+            reply_formulation: "응답 작성 중...",
+            default: "응답을 기다리는 중...",
+        };
+
+        // Default message if nodeName is not recognized
+        if (!nodeName || !nodeMessages[nodeName]) {
+            nodeName = "default";
+        }
+        console.log("🔵 Node name:", nodeName);
+
+        const message = nodeMessages[nodeName];
+        console.log("🔵 Message to display:", message);
+
+        if (
+            this.elements.processingStatus &&
+            this.elements.statusText &&
+            message
+        ) {
+            console.log("🔵 Showing processing status");
+            // Show the processing status
+            this.elements.processingStatus.classList.add("show");
+            this.elements.processingStatus.style.display = "flex"; // Force display
+            this.elements.statusText.textContent = message;
         }
     }
 

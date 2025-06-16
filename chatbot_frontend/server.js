@@ -37,6 +37,8 @@ function getContentType(filePath) {
 function serveStaticFile(res, filePath) {
     const fullPath = path.join(__dirname, filePath);
 
+    console.log(`📁 Serving file: ${fullPath}`);
+
     fs.readFile(fullPath, (error, content) => {
         if (error) {
             if (error.code === "ENOENT") {
@@ -91,7 +93,8 @@ const ChatbotConfig = {
         // Endpoints
         endpoints: {
             health: '/health',
-            chat: '/chat'
+            chat: '/chat',
+            stream: '/chat/stream'
         },
         
         // Request configuration

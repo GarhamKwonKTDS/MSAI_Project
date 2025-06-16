@@ -365,3 +365,19 @@ def _calculate_session_duration(state) -> float:
     except Exception as e:
         logger.error(f"Error calculating session duration: {e}")
         return 0.0
+    
+def format_sse(data: Dict[str, Any], event: str = None) -> str:
+    """
+    Format data as Server-Sent Event
+    
+    Args:
+        data: Data to send as JSON
+        event: Optional event type
+        
+    Returns:
+        str: SSE formatted string
+    """
+    message = f"data: {json.dumps(data, ensure_ascii=False)}\n"
+    if event:
+        message = f"event: {event}\n{message}"
+    return f"{message}\n"

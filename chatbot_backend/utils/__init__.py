@@ -11,7 +11,8 @@ from .helpers import (
     format_error_response,
     sanitize_user_input,
     log_conversation_analytics,
-    create_session_summary
+    create_session_summary,
+    format_sse
 )
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     'format_error_response',
     'sanitize_user_input',
     'log_conversation_analytics',
-    'create_session_summary'
+    'create_session_summary',
+    'format_sse'
 ]
