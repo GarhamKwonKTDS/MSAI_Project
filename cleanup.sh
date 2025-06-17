@@ -6,20 +6,33 @@ echo "🧹 Starting cleanup..."
 # Detect which resource groups exist
 # ================================
 
-PROD_RESOURCE_GROUP="rg-oss-chatbot-dev"
-LOCAL_RESOURCE_GROUP="rg-oss-chatbot-local"
+PROD_RESOURCE_GROUP_PREFIX="rg-oss-chatbot-dev"
+LOCAL_RESOURCE_GROUP_PREFIX="rg-oss-chatbot-local"
 FOUND_GROUPS=()
 
 echo "🔍 Checking for Azure resource groups..."
 
-if az group show --name $PROD_RESOURCE_GROUP &> /dev/null; then
-    echo "  ✓ Found production: $PROD_RESOURCE_GROUP"
-    FOUND_GROUPS+=("$PROD_RESOURCE_GROUP")
-fi
+# Get all resource groups and filter by prefix
+ALL_GROUPS=$(az group list --query "[].name" --output tsv 2>/dev/null || echo "")
 
-if az group show --name $LOCAL_RESOURCE_GROUP &> /dev/null; then
-    echo "  ✓ Found local: $LOCAL_RESOURCE_GROUP"
-    FOUND_GROUPS+=("$LOCAL_RESOURCE_GROUP")
+if [ -n "$ALL_GROUPS" ]; then
+    # Find groups starting with production prefix
+    PROD_GROUPS=$(echo "$ALL_GROUPS" | grep "^${PROD_RESOURCE_GROUP_PREFIX}" || true)
+    if [ -n "$PROD_GROUPS" ]; then
+        while IFS= read -r group; do
+            echo "  ✓ Found production: $group"
+            FOUND_GROUPS+=("$group")
+        done <<< "$PROD_GROUPS"
+    fi
+    
+    # Find groups starting with local prefix
+    LOCAL_GROUPS=$(echo "$ALL_GROUPS" | grep "^${LOCAL_RESOURCE_GROUP_PREFIX}" || true)
+    if [ -n "$LOCAL_GROUPS" ]; then
+        while IFS= read -r group; do
+            echo "  ✓ Found local: $group"
+            FOUND_GROUPS+=("$group")
+        done <<< "$LOCAL_GROUPS"
+    fi
 fi
 
 # ================================

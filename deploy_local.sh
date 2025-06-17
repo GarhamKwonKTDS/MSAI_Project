@@ -4,9 +4,9 @@ set -e
 echo "🚀 Starting local development Azure OpenAI deployment..."
 
 # Configuration
-RESOURCE_GROUP="rg-oss-chatbot-local"
 LOCATION="canadaeast"
 TIMESTAMP=$(date +%m%d-%H%M)
+RESOURCE_GROUP="rg-oss-chatbot-local-${TIMESTAMP}"
 OPENAI_SERVICE_NAME="openai-local-${TIMESTAMP}"
 
 echo "Configuration:"
@@ -145,6 +145,61 @@ SEARCH_ENDPOINT="https://${SEARCH_SERVICE_NAME}.search.windows.net"
 
 echo "✅ Search credentials retrieved"
 
+# Step 10a: Create Cosmos DB Account
+echo ""
+echo "🌍 Creating Cosmos DB account..."
+COSMOS_ACCOUNT_NAME="cosmos-oss-${TIMESTAMP}"
+COSMOS_LOCATION="westus3"  # Or try: northcentralus, westcentralus, southcentralus
+echo "⚠️ Using $COSMOS_LOCATION for Cosmos DB due to capacity constraints"
+
+az cosmosdb create \
+  --resource-group $RESOURCE_GROUP \
+  --name $COSMOS_ACCOUNT_NAME \
+  --locations regionName=$COSMOS_LOCATION failoverPriority=0 isZoneRedundant=false \
+  --default-consistency-level "Session"
+
+echo "✅ Cosmos DB account created"
+
+# Wait for Cosmos DB to be ready
+echo ""
+echo "⏳ Waiting for Cosmos DB to be ready..."
+sleep 30
+
+# Create database and container
+echo ""
+echo "📦 Creating Cosmos DB database and container..."
+az cosmosdb sql database create \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $COSMOS_ACCOUNT_NAME \
+  --name "voc-analytics"
+
+az cosmosdb sql container create \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $COSMOS_ACCOUNT_NAME \
+  --database-name "voc-analytics" \
+  --name "conversations" \
+  --partition-key-path "/session_id" \
+  --throughput 400
+
+echo "✅ Cosmos DB database and container created"
+
+# Get Cosmos DB connection details
+echo ""
+echo "🔑 Getting Cosmos DB credentials..."
+COSMOS_ENDPOINT=$(az cosmosdb show \
+  --resource-group $RESOURCE_GROUP \
+  --name $COSMOS_ACCOUNT_NAME \
+  --query "documentEndpoint" \
+  --output tsv)
+
+COSMOS_KEY=$(az cosmosdb keys list \
+  --resource-group $RESOURCE_GROUP \
+  --name $COSMOS_ACCOUNT_NAME \
+  --query "primaryMasterKey" \
+  --output tsv)
+
+echo "✅ Cosmos DB credentials retrieved"
+
 # Step 11: Create .env file for local development
 echo ""
 echo "📝 Creating .env file for local development..."
@@ -159,6 +214,12 @@ AZURE_OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 AZURE_SEARCH_ENDPOINT=${SEARCH_ENDPOINT}
 AZURE_SEARCH_KEY=${SEARCH_KEY}
 AZURE_SEARCH_INDEX=oss-knowledge-base
+
+# Azure Cosmos DB Configuration
+AZURE_COSMOS_ENDPOINT=${COSMOS_ENDPOINT}
+AZURE_COSMOS_KEY=${COSMOS_KEY}
+AZURE_COSMOS_DATABASE=voc-analytics
+AZURE_COSMOS_CONTAINER=conversations
 
 # Local Development Settings
 FLASK_ENV=development
@@ -190,6 +251,7 @@ python-dotenv==1.0.0
 openai>=1.55.3
 httpx>=0.28
 pydantic>=2.0.0
+azure-cosmos==4.5.1
 EOF
     
     # Install required packages
@@ -353,6 +415,12 @@ echo "  Service: $SEARCH_SERVICE_NAME"
 echo "  Endpoint: $SEARCH_ENDPOINT"
 echo "  Index: oss-knowledge-base"
 echo ""
+echo "Azure Cosmos DB:"
+echo "  Account: $COSMOS_ACCOUNT_NAME"
+echo "  Endpoint: $COSMOS_ENDPOINT"
+echo "  Database: voc-analytics"
+echo "  Container: conversations"
+echo ""
 
 # Save deployment info for cleanup
 cat > local-deployment-info.json << EOF
@@ -360,8 +428,10 @@ cat > local-deployment-info.json << EOF
   "resource_group": "${RESOURCE_GROUP}",
   "openai_service": "${OPENAI_SERVICE_NAME}",
   "search_service": "${SEARCH_SERVICE_NAME}",
+  "cosmos_account": "${COSMOS_ACCOUNT_NAME}",
   "azure_openai_endpoint": "${AZURE_OPENAI_ENDPOINT}",
   "search_endpoint": "${SEARCH_ENDPOINT}",
+  "cosmos_endpoint": "${COSMOS_ENDPOINT}",
   "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF

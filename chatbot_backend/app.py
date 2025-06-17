@@ -52,13 +52,17 @@ app_config = AppConfig()
 # Global Variables
 # ================================
 
-from services.azure_search import search_service
+from services.azure_search import AzureSearchService
 from services.graph_builder import VoCChatbotGraphBuilder
-from services.stream_handler import stream_handler
+from services.stream_handler import StreamHandler
+from services.cosmos_store import ConversationStore
 
 llm = None
 graph_builder = None
 conversation_config = None
+search_service = None
+stream_handler = None
+conversation_store = None
 
 # ================================
 # Initialization
@@ -66,7 +70,7 @@ conversation_config = None
 
 def initialize_application():
     """Initialize all application components"""
-    global llm, graph_builder, conversation_config
+    global llm, graph_builder, conversation_config, search_service, stream_handler, conversation_store
     
     logger.info("🚀 Initializing VoC Chatbot Application...")
     
@@ -106,19 +110,31 @@ def initialize_application():
         logger.info(f"✅ Azure OpenAI initialized: {app_config.azure_openai_model}")
         
         # 3. Initialize Azure Search (optional - just log if not available)
+        search_service = AzureSearchService()
+
         if search_service.is_available():
             logger.info("✅ Azure AI Search is available")
         else:
             logger.warning("⚠️  Azure AI Search not available - RAG will be disabled")
+
+        # 4. Initialize Cosmos DB store (optional - just log if not available)
+        conversation_store = ConversationStore()
+
+        if conversation_store.is_available():
+            logger.info("✅ Cosmos DB conversation store initialized")
+        else:
+            logger.warning("⚠️  Cosmos DB not available - conversation storage will be disabled")
         
-        # 4. Build LangGraph
-        graph_builder = VoCChatbotGraphBuilder(conversation_config, llm)
+        # 5. Build LangGraph
+        graph_builder = VoCChatbotGraphBuilder(conversation_config, llm, search_service)
         chatbot_graph = graph_builder.build_graph()
         
         logger.info("✅ LangGraph built successfully")
 
         # Initialize stream handler with graph instances
-        stream_handler.initialize(graph_builder, chatbot_graph)
+        stream_handler = StreamHandler()
+
+        stream_handler.initialize(graph_builder, chatbot_graph, conversation_store)
         logger.info("✅ Stream handler initialized")
         
         logger.info("🎉 VoC Chatbot Application initialized successfully!")
@@ -199,6 +215,9 @@ def chat_endpoint():
         logger.info("🔄 Running LangGraph workflow...")
         final_state = chatbot_graph.invoke(initial_state, config=session_config)
 
+        # Save conversation turn to Cosmos DB
+        conversation_store.save_conversation_turn_sync(session_id, final_state)
+
         logger.info("✅ Workflow completed successfully")
         logger.debug(f"Final state: {final_state}")
         
@@ -257,10 +276,7 @@ def chat_stream_endpoint():
         logger.info(f"💬 Stream request - Session: {session_id[:8]}..., Message: {user_message[:50]}...")
         
         # Create generator for streaming
-        # Create generator for streaming
         def generate():
-            import asyncio
-            
             # Create event loop for async processing
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)

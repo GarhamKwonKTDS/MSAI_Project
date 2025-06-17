@@ -4,9 +4,9 @@ set -e
 echo "🚀 Starting minimal Azure OpenAI deployment..."
 
 # Configuration
-RESOURCE_GROUP="rg-oss-chatbot-dev"
 LOCATION="canadaeast"
 TIMESTAMP=$(date +%m%d-%H%M)
+RESOURCE_GROUP="rg-oss-chatbot-dev-${TIMESTAMP}"
 OPENAI_SERVICE_NAME="openai-oss-${TIMESTAMP}"
 
 echo "Configuration:"
@@ -157,6 +157,61 @@ echo ""
 echo "🎉 Core Azure services deployed successfully!"
 echo "Next steps: App Service and code deployment"
 
+# Step 11a: Create Cosmos DB Account
+echo ""
+echo "🌍 Creating Cosmos DB account..."
+COSMOS_ACCOUNT_NAME="cosmos-oss-${TIMESTAMP}"
+COSMOS_LOCATION="westus3"  # Or try: northcentralus, westcentralus, southcentralus
+echo "⚠️ Using $COSMOS_LOCATION for Cosmos DB due to capacity constraints"
+
+az cosmosdb create \
+  --resource-group $RESOURCE_GROUP \
+  --name $COSMOS_ACCOUNT_NAME \
+  --locations regionName=$COSMOS_LOCATION failoverPriority=0 isZoneRedundant=false \
+  --default-consistency-level "Session"
+
+echo "✅ Cosmos DB account created"
+
+# Wait for Cosmos DB to be ready
+echo ""
+echo "⏳ Waiting for Cosmos DB to be ready..."
+sleep 30
+
+# Create database and container
+echo ""
+echo "📦 Creating Cosmos DB database and container..."
+az cosmosdb sql database create \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $COSMOS_ACCOUNT_NAME \
+  --name "voc-analytics"
+
+az cosmosdb sql container create \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $COSMOS_ACCOUNT_NAME \
+  --database-name "voc-analytics" \
+  --name "conversations" \
+  --partition-key-path "/session_id" \
+  --throughput 400
+
+echo "✅ Cosmos DB database and container created"
+
+# Get Cosmos DB connection details
+echo ""
+echo "🔑 Getting Cosmos DB credentials..."
+COSMOS_ENDPOINT=$(az cosmosdb show \
+  --resource-group $RESOURCE_GROUP \
+  --name $COSMOS_ACCOUNT_NAME \
+  --query "documentEndpoint" \
+  --output tsv)
+
+COSMOS_KEY=$(az cosmosdb keys list \
+  --resource-group $RESOURCE_GROUP \
+  --name $COSMOS_ACCOUNT_NAME \
+  --query "primaryMasterKey" \
+  --output tsv)
+
+echo "✅ Cosmos DB credentials retrieved"
+
 # Step 12: Create App Service Plan
 echo ""
 echo "📱 Creating App Service Plan (Free tier)..."
@@ -167,7 +222,7 @@ az appservice plan create \
   --resource-group $RESOURCE_GROUP \
   --name $APP_SERVICE_PLAN \
   --location $LOCATION \
-  --sku F1 \
+  --sku B1 \
   --is-linux
 
 echo "✅ App Service Plan created"
@@ -197,6 +252,10 @@ az webapp config appsettings set \
     AZURE_SEARCH_ENDPOINT="${SEARCH_ENDPOINT}" \
     AZURE_SEARCH_KEY="${SEARCH_KEY}" \
     AZURE_SEARCH_INDEX="oss-knowledge-base" \
+    AZURE_COSMOS_ENDPOINT="${COSMOS_ENDPOINT}" \
+    AZURE_COSMOS_KEY="${COSMOS_KEY}" \
+    AZURE_COSMOS_DATABASE="voc-analytics" \
+    AZURE_COSMOS_CONTAINER="conversations" \
     SCM_DO_BUILD_DURING_DEPLOYMENT="true" \
     USE_AZURE_OPENAI="true"
 
@@ -237,6 +296,7 @@ gunicorn==21.2.0
 openai>=1.55.3
 httpx>=0.28
 pydantic>=2.0.0
+azure-cosmos==4.5.1
 EOF
 
 # Create zip package
@@ -373,6 +433,12 @@ echo "Azure AI Search:"
 echo "  Service: $SEARCH_SERVICE_NAME"
 echo "  Endpoint: $SEARCH_ENDPOINT"
 echo "  Index: oss-knowledge-base"
+echo ""
+echo "Azure Cosmos DB:"
+echo "  Account: $COSMOS_ACCOUNT_NAME"
+echo "  Endpoint: $COSMOS_ENDPOINT"
+echo "  Database: voc-analytics"
+echo "  Container: conversations"
 echo ""
 echo "Web App:"
 echo "  Name: $BACKEND_APP_NAME"

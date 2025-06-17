@@ -14,12 +14,14 @@ class StreamHandler:
     def __init__(self):
         self.graph_builder = None
         self.chatbot_graph = None
-    
-    def initialize(self, graph_builder, chatbot_graph):
+        self.conversation_store = None
+
+    def initialize(self, graph_builder, chatbot_graph, conversation_store):
         """Initialize with graph instances from main app"""
         self.graph_builder = graph_builder
         self.chatbot_graph = chatbot_graph
-    
+        self.conversation_store = conversation_store
+
     async def process_chat_stream(
         self, 
         user_message: str, 
@@ -93,6 +95,10 @@ class StreamHandler:
             
             # Yield the final response
             if final_state:
+                # Save conversation to Cosmos DB
+                logger.info(f"✅ Final state for session {session_id[:8]}: {final_state}")
+                self.conversation_store.save_conversation_turn_sync(session_id, final_state)
+
                 yield {
                     "response": final_state.get("final_response", "죄송합니다. 응답을 생성할 수 없습니다."),
                     "metadata": {
@@ -107,6 +113,3 @@ class StreamHandler:
         except Exception as e:
             logger.error(f"❌ Error in stream processing: {e}")
             yield {"error": str(e)}
-
-# Global instance
-stream_handler = StreamHandler()

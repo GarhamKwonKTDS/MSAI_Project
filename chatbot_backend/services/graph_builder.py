@@ -14,6 +14,8 @@ from nodes.issue_classification import issue_classification_node, determine_next
 from nodes.case_narrowing import case_narrowing_node
 from nodes.reply_formulation import reply_formulation_node
 
+from services.azure_search import AzureSearchService
+
 logger = logging.getLogger(__name__)
 
 class VoCChatbotGraphBuilder:
@@ -21,7 +23,7 @@ class VoCChatbotGraphBuilder:
     Builds the LangGraph workflow for the VoC chatbot
     """
     
-    def __init__(self, config: Dict[str, Any], llm: AzureChatOpenAI):
+    def __init__(self, config: Dict[str, Any], llm: AzureChatOpenAI, search_service: AzureSearchService):
         """
         Initialize the graph builder
         
@@ -31,6 +33,7 @@ class VoCChatbotGraphBuilder:
         """
         self.config = config
         self.llm = llm
+        self.search_service = search_service 
         self.graph = None
         self.memory = MemorySaver()
         
@@ -75,11 +78,11 @@ class VoCChatbotGraphBuilder:
             return state_analysis_node(state, self.config, self.llm)
         
         def issue_classification_wrapper(state: ChatbotState) -> ChatbotState:
-            return issue_classification_node(state, self.config, self.llm)
+            return issue_classification_node(state, self.config, self.llm, self.search_service)
         
         def case_narrowing_wrapper(state: ChatbotState) -> ChatbotState:
-            return case_narrowing_node(state, self.config, self.llm)
-        
+            return case_narrowing_node(state, self.config, self.llm, self.search_service)
+
         def reply_formulation_wrapper(state: ChatbotState) -> ChatbotState:
             return reply_formulation_node(state, self.config, self.llm)
         

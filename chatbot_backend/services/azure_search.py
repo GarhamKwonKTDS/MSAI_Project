@@ -336,6 +336,3 @@ class AzureSearchService:
         except Exception as e:
             logger.error(f"❌ Error getting related questions: {e}")
             return []
-
-# 전역 인스턴스 생성
-search_service = AzureSearchService()

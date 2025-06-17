@@ -6,11 +6,11 @@ from typing import Dict, Any, List
 from langchain_openai import AzureChatOpenAI
 from models.state import ChatbotState, update_state_metadata
 
-from services.azure_search import search_service
+from services.azure_search import AzureSearchService
 
 logger = logging.getLogger(__name__)
 
-def issue_classification_node(state: ChatbotState, config: Dict[str, Any], llm: AzureChatOpenAI) -> ChatbotState:
+def issue_classification_node(state: ChatbotState, config: Dict[str, Any], llm: AzureChatOpenAI, search_service: AzureSearchService) -> ChatbotState:
     """
     Issue Classification Node - Classifies user message into issue categories
     

@@ -4,14 +4,14 @@
 Services for VoC chatbot application
 """
 
-from .azure_search import search_service, AzureSearchService
+from .azure_search import AzureSearchService
 from .graph_builder import VoCChatbotGraphBuilder
-from .stream_handler import stream_handler, StreamHandler
+from .stream_handler import StreamHandler
+from .cosmos_store import ConversationStore
 
 __all__ = [
-    'search_service',
     'AzureSearchService',
     'VoCChatbotGraphBuilder',
-    'stream_handler',
-    'StreamHandler'
+    'StreamHandler',
+    'ConversationStore'
 ]
