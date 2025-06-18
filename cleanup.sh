@@ -102,7 +102,17 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -rf frontend_deployment
         echo "  ✅ Removed frontend_deployment/"
     fi
-    
+
+    if [ -d "admin_backend_deployment" ]; then
+        rm -rf admin_backend_deployment
+        echo "  ✅ Removed admin_backend_deployment/"
+    fi
+
+    if [ -d "admin_frontend_deployment" ]; then
+        rm -rf admin_frontend_deployment
+        echo "  ✅ Removed admin_frontend_deployment/"
+    fi
+
     # Remove zip files
     if ls *.zip 1> /dev/null 2>&1; then
         rm *.zip

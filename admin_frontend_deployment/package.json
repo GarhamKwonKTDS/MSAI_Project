@@ -1,9 +1,0 @@
-{
-    "name": "oss-admin-frontend",
-    "version": "1.0.0",
-    "description": "OSS Admin Dashboard",
-    "main": "server.js",
-    "scripts": {
-        "start": "node server.js"
-    }
-}
