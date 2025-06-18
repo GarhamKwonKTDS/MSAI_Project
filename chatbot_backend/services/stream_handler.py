@@ -96,7 +96,6 @@ class StreamHandler:
             # Yield the final response
             if final_state:
                 # Save conversation to Cosmos DB
-                logger.info(f"✅ Final state for session {session_id[:8]}: {final_state}")
                 self.conversation_store.save_conversation_turn_sync(session_id, final_state)
 
                 yield {

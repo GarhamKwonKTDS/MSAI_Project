@@ -20,7 +20,7 @@ class ConversationStore:
         self.endpoint = os.getenv('AZURE_COSMOS_ENDPOINT')
         self.key = os.getenv('AZURE_COSMOS_KEY')
         self.database_name = os.getenv('AZURE_COSMOS_DATABASE', 'voc-analytics')
-        self.container_name = os.getenv('AZURE_COSMOS_CONTAINER', 'conversations')
+        self.container_name = os.getenv('AZURE_COSMOS_TURNS_CONTAINER', 'turns')
         
         if not self.endpoint or not self.key:
             logger.warning("Cosmos DB credentials not found - conversation storage will be disabled")

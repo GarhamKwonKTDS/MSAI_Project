@@ -147,12 +147,27 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm run-local.sh
         echo "  ✅ Removed run-local.sh"
     fi
-    
+
+    if [ -f "run-admin.sh" ]; then
+        rm run-admin.sh
+        echo "  ✅ Removed run-admin.sh"
+    fi
+
     if [ -f "test-chat.sh" ]; then
         rm test-chat.sh
         echo "  ✅ Removed test-chat.sh"
     fi
-    
+
+    if [ -f "services-config.json" ]; then
+        rm services-config.json
+        echo "  ✅ Removed services-config.json"
+    fi
+
+    if [ -f "apps-config.json" ]; then
+        rm apps-config.json
+        echo "  ✅ Removed apps-config.json"
+    fi
+
     echo ""
     echo "✅ Local files cleaned up"
     

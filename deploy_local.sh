@@ -3,8 +3,8 @@ set -e
 
 echo "🚀 Starting local development Azure OpenAI deployment..."
 
-# Configuration
-LOCATION="canadaeast"
+# Configuration (default: canadaeast)
+LOCATION="australiaeast"
 TIMESTAMP=$(date +%m%d-%H%M)
 RESOURCE_GROUP="rg-oss-chatbot-local-${TIMESTAMP}"
 OPENAI_SERVICE_NAME="openai-local-${TIMESTAMP}"
@@ -177,8 +177,24 @@ az cosmosdb sql container create \
   --resource-group $RESOURCE_GROUP \
   --account-name $COSMOS_ACCOUNT_NAME \
   --database-name "voc-analytics" \
+  --name "turns" \
+  --partition-key-path "/session_id" \
+  --throughput 400
+
+az cosmosdb sql container create \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $COSMOS_ACCOUNT_NAME \
+  --database-name "voc-analytics" \
   --name "conversations" \
   --partition-key-path "/session_id" \
+  --throughput 400
+
+az cosmosdb sql container create \
+  --resource-group $RESOURCE_GROUP \
+  --account-name $COSMOS_ACCOUNT_NAME \
+  --database-name "voc-analytics" \
+  --name "statistics" \
+  --partition-key-path "/data" \
   --throughput 400
 
 echo "✅ Cosmos DB database and container created"
@@ -219,7 +235,9 @@ AZURE_SEARCH_INDEX=oss-knowledge-base
 AZURE_COSMOS_ENDPOINT=${COSMOS_ENDPOINT}
 AZURE_COSMOS_KEY=${COSMOS_KEY}
 AZURE_COSMOS_DATABASE=voc-analytics
-AZURE_COSMOS_CONTAINER=conversations
+AZURE_COSMOS_TURNS_CONTAINER=turns
+AZURE_COSMOS_CONVERSATIONS_CONTAINER=conversations
+AZURE_COSMOS_STATISTICS_CONTAINER=statistics
 
 # Local Development Settings
 FLASK_ENV=development
@@ -373,6 +391,102 @@ EOF
 
 chmod +x run-local.sh
 
+# Create run-admin.sh script
+cat > run-admin.sh << 'EOF'
+#!/bin/bash
+echo "🚀 Starting OSS Admin Services (Backend + Frontend)..."
+
+# Check if virtual environment exists
+if [ ! -d "venv" ]; then
+    echo "❌ Virtual environment not found! Run ./deploy-local.sh first"
+    exit 1
+fi
+
+# Check if .env file exists
+if [ ! -f ".env" ]; then
+    echo "❌ .env file not found! Run ./deploy-local.sh first"
+    exit 1
+fi
+
+# Check if admin directories exist
+if [ ! -d "admin_backend" ]; then
+    echo "❌ admin_backend directory not found!"
+    exit 1
+fi
+
+if [ ! -d "admin_frontend" ]; then
+    echo "❌ admin_frontend directory not found!"
+    exit 1
+fi
+
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js not found! Please install Node.js to run the frontend."
+    exit 1
+fi
+
+# Function to cleanup on exit
+cleanup() {
+    echo ""
+    echo "🛑 Shutting down admin servers..."
+    if [ ! -z "$ADMIN_BACKEND_PID" ]; then
+        kill $ADMIN_BACKEND_PID 2>/dev/null || true
+    fi
+    if [ ! -z "$ADMIN_FRONTEND_PID" ]; then
+        kill $ADMIN_FRONTEND_PID 2>/dev/null || true
+    fi
+    echo "✅ Admin servers stopped"
+    exit 0
+}
+
+# Set trap for cleanup
+trap cleanup SIGINT SIGTERM
+
+# Start Admin Backend
+echo "🐍 Starting Flask admin backend..."
+source venv/bin/activate
+
+export FLASK_ENV=development
+export FLASK_DEBUG=true
+export PORT=8082
+
+cd admin_backend
+python app.py &
+ADMIN_BACKEND_PID=$!
+cd ..
+
+# Wait a moment for backend to start
+sleep 3
+
+# Start Admin Frontend
+echo "🌐 Starting Node.js admin frontend..."
+
+export API_BASE_URL=http://localhost:8082
+export PORT=8083
+export NODE_ENV=development
+
+cd admin_frontend
+node server.js &
+ADMIN_FRONTEND_PID=$!
+cd ..
+
+# Display status
+echo ""
+echo "🎉 Admin services started successfully!"
+echo "================================="
+echo "📱 Admin Frontend: http://localhost:8083"
+echo "🔗 Admin Backend API: http://localhost:8082"
+echo "🏥 Health Check: http://localhost:8082/health"
+echo ""
+echo "Press Ctrl+C to stop both servers"
+echo ""
+
+# Wait for either process to exit
+wait $ADMIN_BACKEND_PID $ADMIN_FRONTEND_PID
+EOF
+
+chmod +x run-admin.sh
+
 # Create test script
 cat > test-chat.sh << 'EOF'
 #!/bin/bash
@@ -443,14 +557,33 @@ echo "🚀 Next Steps:"
 echo "1. Run the chatbot locally:"
 echo "   ./run-local.sh"
 echo ""
-echo "2. Test the chat endpoint:"
+echo "2. Run the admin services:"
+echo "   ./run-admin.sh"
+echo ""
+echo "3. Run Azure Functions locally:"
+echo "   ./run-functions.sh"
+echo ""
+echo "4. Test the services:"
 echo "   ./test-chat.sh \"Hello, I need help\""
+echo "   ./test-analytics.sh"
+echo "   ./test-batch-processing.sh"
 echo ""
-echo "3. Make changes to app.py and restart with:"
-echo "   Ctrl+C (to stop) then ./run-local.sh (to restart)"
+echo "5. Access the services:"
+echo "   Chatbot Frontend: http://localhost:8081"
+echo "   Chatbot Backend: http://localhost:8080"
+echo "   Admin Frontend: http://localhost:8083"
+echo "   Admin Backend: http://localhost:8082"
+echo "   Azure Functions: http://localhost:7071"
 echo ""
-echo "4. When done developing, clean up Azure resources:"
-echo "   ./cleanup-local.sh"
+echo "6. Function Endpoints (when running locally):"
+echo "   Analytics API: http://localhost:7071/api/analytics"
+echo "   Process Conversations: http://localhost:7071/api/process-conversations"
 echo ""
-echo "💡 Your .env file contains all the Azure credentials"
-echo "🔒 Keep your .env file secure and don't commit it to git!"
+echo "7. Make changes and restart with:"
+echo "   Ctrl+C (to stop) then ./run-[service].sh (to restart)"
+echo ""
+echo "8. When done developing, clean up Azure resources:"
+echo "   ./cleanup.sh"
+echo ""
+echo "💡 Your .env and local.settings.json files contain all credentials"
+echo "🔒 Keep your credential files secure and don't commit them to git!"
