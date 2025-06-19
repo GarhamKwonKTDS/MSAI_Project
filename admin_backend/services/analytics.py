@@ -91,7 +91,7 @@ class AnalyticsService:
                 ))
                 
                 # Analyze conversation
-                conversation_data = analyze_conversation(session_turns)
+                conversation_data = self.analyze_conversation(session_turns)
                 
                 if conversation_data:
                     # Save to conversations container
@@ -200,7 +200,7 @@ class AnalyticsService:
             return {"message": "No conversations found", "metrics": None}
         
         # Calculate metrics
-        metrics = calculate_analytics_metrics(conversations)
+        metrics = self.calculate_analytics_metrics(conversations)
         
         # Save summary
         statistics_container = database.get_container_client('statistics')

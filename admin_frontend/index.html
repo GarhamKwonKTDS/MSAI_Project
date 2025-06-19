@@ -32,6 +32,9 @@
                 <!-- Analytics View -->
                 <div id="analytics-view" class="view active">
                     <h1>Analytics Dashboard</h1>
+
+                    <!-- Volume Metrics -->
+                    <h2>Volume Metrics</h2>
                     <div class="metrics-grid">
                         <div class="metric-card">
                             <h3>Total Sessions</h3>
@@ -39,6 +42,23 @@
                                 -
                             </div>
                         </div>
+                        <div class="metric-card">
+                            <h3>Total Conversations</h3>
+                            <div class="metric-value" id="total-conversations">
+                                -
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>Total Messages</h3>
+                            <div class="metric-value" id="total-messages">
+                                -
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Metrics -->
+                    <h2>Performance Metrics</h2>
+                    <div class="metrics-grid">
                         <div class="metric-card">
                             <h3>Success Rate</h3>
                             <div class="metric-value" id="success-rate">-</div>
@@ -50,33 +70,79 @@
                             </div>
                         </div>
                         <div class="metric-card">
-                            <h3>Escalations</h3>
-                            <div class="metric-value" id="total-escalations">
+                            <h3>Avg Conversation Length</h3>
+                            <div
+                                class="metric-value"
+                                id="avg-conversation-length"
+                            >
                                 -
                             </div>
                         </div>
                     </div>
 
-                    <div class="chart-container">
+                    <!-- Breakdown -->
+                    <h2>Conversation Outcomes</h2>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <h3>Solved</h3>
+                            <div class="metric-value success" id="solved-count">
+                                -
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>Escalated</h3>
+                            <div
+                                class="metric-value warning"
+                                id="escalated-count"
+                            >
+                                -
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>Abandoned</h3>
+                            <div
+                                class="metric-value error"
+                                id="abandoned-count"
+                            >
+                                -
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>Interrupted</h3>
+                            <div class="metric-value" id="interrupted-count">
+                                -
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Issue Distribution -->
+                    <div class="distribution-section">
                         <h2>Issue Distribution</h2>
-                        <div id="issue-chart"></div>
+                        <div
+                            id="issue-distribution"
+                            class="distribution-chart"
+                        ></div>
+                    </div>
+
+                    <!-- Case Distribution -->
+                    <div class="distribution-section">
+                        <h2>Case Distribution</h2>
+                        <div
+                            id="case-distribution"
+                            class="distribution-chart"
+                        ></div>
+                    </div>
+
+                    <!-- Unidentified Conversations -->
+                    <div class="unidentified-section">
+                        <h2>Unidentified Conversations</h2>
+                        <div id="unidentified-info"></div>
                     </div>
                 </div>
 
                 <!-- Knowledge Base View -->
                 <div id="knowledge-view" class="view">
                     <h1>Knowledge Base Management</h1>
-                    <div class="actions-bar">
-                        <button
-                            class="btn btn-primary"
-                            onclick="adminApp.showCreateCase()"
-                        >
-                            + Add New Case
-                        </button>
-                        <button class="btn" onclick="adminApp.refreshCases()">
-                            🔄 Refresh
-                        </button>
-                    </div>
 
                     <div class="cases-table">
                         <table id="cases-table">
@@ -94,6 +160,11 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Floating Add Button -->
+                    <button class="fab" id="addCaseBtn" title="Add New Case">
+                        <span class="fab-icon">+</span>
+                    </button>
                 </div>
             </main>
 
@@ -107,6 +178,116 @@
                     <form id="case-form">
                         <!-- Form will be populated dynamically -->
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Case Editor Overlay -->
+        <div id="caseEditorOverlay" class="overlay">
+            <div class="overlay-content">
+                <div class="overlay-header">
+                    <h2 id="overlayTitle">Create New Case</h2>
+                    <button
+                        class="close-btn"
+                        onclick="adminApp.closeCaseEditor()"
+                    >
+                        &times;
+                    </button>
+                </div>
+
+                <div class="overlay-body">
+                    <!-- Description/Instructions Box -->
+                    <!-- Description/Instructions Box -->
+                    <div class="description-section">
+                        <h3>Describe the issue or changes</h3>
+                        <textarea
+                            id="issueDescription"
+                            rows="4"
+                            placeholder="Describe the issue in natural language, or explain what changes you want to make..."
+                        ></textarea>
+                        <div class="action-buttons">
+                            <button
+                                class="btn btn-primary"
+                                onclick="adminApp.generateFromDescription()"
+                            >
+                                Generate from Description
+                            </button>
+                            <button
+                                class="btn"
+                                onclick="adminApp.showUnsolvedIssues()"
+                            >
+                                Select from Unsolved Issues
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Case Form -->
+                    <div id="caseForm" class="case-form">
+                        <div class="form-group">
+                            <label>Issue Type</label>
+                            <input
+                                type="text"
+                                id="issueType"
+                                placeholder="e.g., oss_login_failure"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>Issue Name</label>
+                            <input
+                                type="text"
+                                id="issueName"
+                                placeholder="e.g., OSS 로그인 문제"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>Case Type</label>
+                            <input
+                                type="text"
+                                id="caseType"
+                                placeholder="e.g., password_reset"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>Case Name</label>
+                            <input
+                                type="text"
+                                id="caseName"
+                                placeholder="e.g., Password Reset Required"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Keywords (comma separated)</label>
+                            <input
+                                type="text"
+                                id="keywords"
+                                placeholder="password, reset, login"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>Solution Steps</label>
+                            <textarea
+                                id="solutionSteps"
+                                rows="4"
+                                placeholder="1. First step&#10;2. Second step"
+                            ></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay-footer">
+                    <button class="btn" onclick="adminApp.closeCaseEditor()">
+                        Cancel
+                    </button>
+                    <button
+                        class="btn btn-primary"
+                        onclick="adminApp.saveCase()"
+                    >
+                        Save Case
+                    </button>
                 </div>
             </div>
         </div>

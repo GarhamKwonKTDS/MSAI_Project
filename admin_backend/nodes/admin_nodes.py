@@ -19,18 +19,20 @@ def state_analyzer_node(state: AdminChatbotState, llm: AzureChatOpenAI) -> Admin
 User message: "{state['user_message']}"
 
 Possible intents:
-- search_cases: User wants to search or find cases/issues
-- create_case: User wants to create a new case
-- update_case: User wants to update/edit an existing case  
-- delete_case: User wants to delete a case
-- search_analytics: User wants analytics data or statistics
+- create_case: User wants to create a new case from a description
+- update_case: User wants to modify/update case data
+- generate_from_unsolved: User wants to create a case from unsolved VoC issues
 - unknown: Cannot determine intent
+
+Look for keywords like:
+- "Create a case from this description" → create_case
+- "Update case data" → update_case
+- "Generate from unsolved" → generate_from_unsolved
 
 Respond in JSON format:
 {{
     "intent": "one of the above intents",
-    "search_query": "search query if searching (else null)",
-    "case_id": "case ID if updating/deleting (else null)"
+    "description": "extracted description if any"
 }}
 
 Only respond with valid JSON."""
@@ -40,8 +42,7 @@ Only respond with valid JSON."""
         result = json.loads(response.content.strip())
         
         state['user_intent'] = result.get('intent', 'unknown')
-        state['search_query'] = result.get('search_query')
-        state['case_id'] = result.get('case_id')
+        state['search_query'] = result.get('description')
         
         logger.info(f"✅ Detected intent: {state['user_intent']}")
         
@@ -55,61 +56,67 @@ Only respond with valid JSON."""
 def handle_request_node(state: AdminChatbotState, llm: AzureChatOpenAI, 
                        search_service, analytics_service) -> AdminChatbotState:
     """
-    Handle the user's request based on intent
+    Handle the user's request and generate case data
     """
     intent = state.get('user_intent', 'unknown')
     logger.info(f"📝 Handling request with intent: {intent}")
     
     try:
-        if intent == 'search_cases':
-            query = state.get('search_query', state['user_message'])
-            cases = search_service.search_cases(query)
+        if intent == 'create_case':
+            # Generate case data from description
+            description = state.get('search_query', state['user_message'])
             
-            if cases:
-                response = f"Found {len(cases)} cases:\n\n"
-                for case in cases[:5]:  # Show top 5
-                    response += f"• {case['case_name']} ({case['id']})\n"
-                    response += f"  {case['description'][:100]}...\n\n"
-            else:
-                response = "No cases found matching your search."
-            
-            state['response'] = response
-            
-        elif intent == 'create_case':
-            # For now, just provide instructions
-            state['response'] = """To create a new case, please provide the following information:
-- Issue Type (e.g., oss_login_failure)
-- Issue Name 
-- Case Type (unique identifier)
-- Case Name
-- Description
-- Keywords (optional)
-- Solution Steps (optional)"""
-            
+            prompt = f"""Based on this issue description, generate a complete case entry for our knowledge base.
+
+Description: "{description}"
+
+Generate a JSON object with these fields:
+- issue_type: Choose from [oss_login_failure, oss_permission_request, oss_information_management]
+- issue_name: Korean name for the issue type
+- case_type: A unique identifier in snake_case (e.g., password_reset, account_locked)
+- case_name: Descriptive name for this specific case
+- description: Clear description of the problem
+- keywords: Array of relevant search keywords
+- symptoms: Array of symptoms users might experience
+- questions_to_ask: Array of diagnostic questions
+- solution_steps: Array of step-by-step solutions
+- escalation_triggers: Array of conditions that require escalation
+
+Example format:
+{{
+    "issue_type": "oss_login_failure",
+    "issue_name": "OSS 로그인 문제",
+    "case_type": "password_expired",
+    "case_name": "Password Expired",
+    "description": "IDMS 비밀번호가 만료되어 OSS 로그인이 불가능한 상황",
+    "keywords": ["비밀번호만료", "password expired", "로그인불가"],
+    "symptoms": ["비밀번호가 만료되었다는 메시지", "로그인 시도 시 오류"],
+    "questions_to_ask": ["언제 마지막으로 비밀번호를 변경하셨나요?", "어떤 오류 메시지가 나타나나요?"],
+    "solution_steps": ["1. IDMS 포털에 접속합니다", "2. 비밀번호 재설정을 선택합니다", "3. 새 비밀번호를 설정합니다"],
+    "escalation_triggers": ["IDMS 접근 불가", "반복적인 재설정 실패"]
+}}
+
+Generate appropriate data based on the description. Respond with ONLY the JSON object."""
+
+            response = llm.invoke(prompt)
+            try:
+                case_data = json.loads(response.content.strip())
+                state['case_data'] = case_data
+                state['response'] = json.dumps(case_data, ensure_ascii=False, indent=2)
+            except json.JSONDecodeError:
+                state['error'] = "Failed to generate valid case data"
+                state['response'] = "Error: Could not generate valid case structure"
+                
         elif intent == 'update_case':
-            case_id = state.get('case_id')
-            if case_id:
-                case = search_service.get_case(case_id)
-                if case:
-                    state['response'] = f"Found case {case_id}:\n{json.dumps(case, indent=2, ensure_ascii=False)}\n\nWhat would you like to update?"
-                else:
-                    state['response'] = f"Case {case_id} not found."
-            else:
-                state['response'] = "Please specify which case ID you want to update."
-                
-        elif intent == 'delete_case':
-            case_id = state.get('case_id')
-            if case_id:
-                state['response'] = f"Are you sure you want to delete case {case_id}? Please confirm."
-            else:
-                state['response'] = "Please specify which case ID you want to delete."
-                
-        elif intent == 'search_analytics':
-            # Simple analytics summary
-            state['response'] = "Analytics feature coming soon. Use the analytics endpoints for now."
+            # For updates, we'd need the existing case data and the changes
+            state['response'] = "To update a case, please provide the case ID and the changes you want to make."
+            
+        elif intent == 'generate_from_unsolved':
+            # TODO: Integrate with analytics to get unsolved issues
+            state['response'] = "Fetching unsolved VoC issues... (This feature will connect to analytics data)"
             
         else:
-            state['response'] = "I couldn't understand your request. You can:\n• Search for cases\n• Create a new case\n• Update an existing case\n• Delete a case\n• View analytics"
+            state['response'] = "Please describe the issue you want to create a case for, or specify what you want to update."
             
     except Exception as e:
         logger.error(f"Error handling request: {e}")

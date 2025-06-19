@@ -121,6 +121,52 @@ def analytics_http():
         return jsonify({
             "error": f"Analytics failed: {str(e)}"
         }), 500
+    
+@app.route('/api/analytics/summary')
+def get_analytics_summary():
+    """Get overall metrics summary from the latest analytics run"""
+    try:
+        if not cosmos_client:
+            return jsonify({"error": "Cosmos DB not available"}), 503
+        
+        database_name = os.getenv('AZURE_COSMOS_DATABASE', 'voc-analytics')
+
+        # Get database and statistics container
+        database = cosmos_client.get_database_client(database_name)
+        statistics_container = database.get_container_client('statistics')
+        
+        # Query for the most recent overall summary
+        query = """
+        SELECT TOP 1 * FROM c 
+        WHERE c.type = 'overall_summary' 
+        ORDER BY c.generated_at DESC
+        """
+        
+        summaries = list(statistics_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not summaries:
+            # No analytics data yet - return default values
+            return jsonify({
+                "message": "No analytics data available yet",
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        latest_summary = summaries[0]
+        metrics = latest_summary.get('metrics', {})
+        
+        # Return the full metrics structure
+        return jsonify({
+            "metrics": metrics,
+            "generated_at": latest_summary.get('generated_at', datetime.now().isoformat()),
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Analytics summary error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # ================================
 # Admin Chatbot Endpoint
@@ -157,11 +203,18 @@ def admin_chat():
         config = {"configurable": {"thread_id": session_id}}
         final_state = admin_chatbot_graph.invoke(initial_state, config=config)
         
-        return jsonify({
+        # Build response with case data if generated
+        response_data = {
             "response": final_state.get("response", "Sorry, I couldn't process your request."),
             "intent": final_state.get("user_intent"),
             "session_id": session_id
-        })
+        }
+        
+        # Include case_data if it was generated
+        if final_state.get("case_data"):
+            response_data["case_data"] = final_state["case_data"]
+        
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Admin chat error: {e}")
