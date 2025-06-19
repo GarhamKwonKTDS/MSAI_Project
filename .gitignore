@@ -1,0 +1,21 @@
+# ── Deployment script outputs ──
+.env
+services-config.json
+apps-config.json
+deployment-info.json
+local-dev-info.json
+
+# ── Generated helper scripts ──
+run-local.sh
+run-admin.sh
+test-chat.sh
+redeploy-apps.sh
+
+# ── Requirements files (re-generated) ──
+requirements.txt
+
+# ── Deployment packages ──
+*.zip
+
+# ── Temporary staging folder ──
+temp_deployment/

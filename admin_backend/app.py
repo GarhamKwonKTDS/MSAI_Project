@@ -32,10 +32,10 @@ AZURE_SEARCH_ENDPOINT = os.getenv('AZURE_SEARCH_ENDPOINT')
 AZURE_SEARCH_KEY = os.getenv('AZURE_SEARCH_KEY')
 AZURE_SEARCH_INDEX = os.getenv('AZURE_SEARCH_INDEX', 'oss-knowledge-base')
 
-COSMOS_ENDPOINT = os.getenv('COSMOS_ENDPOINT')
-COSMOS_KEY = os.getenv('COSMOS_KEY')
-COSMOS_DATABASE = os.getenv('COSMOS_DATABASE', 'voc-chatbot')
-COSMOS_CONTAINER = os.getenv('COSMOS_CONTAINER', 'conversations')
+COSMOS_ENDPOINT = os.getenv('AZURE_COSMOS_ENDPOINT')
+COSMOS_KEY = os.getenv('AZURE_COSMOS_KEY')
+COSMOS_DATABASE = os.getenv('AZURE_COSMOS_DATABASE', 'voc-chatbot')
+COSMOS_CONTAINER = os.getenv('AZURE_COSMOS_CONTAINER', 'conversations')
 
 # Initialize clients
 search_client = None
@@ -72,19 +72,78 @@ initialize_clients()
 
 @app.route('/api/analytics/summary')
 def get_analytics_summary():
-    """Get overall metrics summary"""
+    """Get overall metrics summary from the latest analytics run"""
     try:
-        # TODO: Implement Cosmos DB query for metrics
-        # For now, return mock data
+        if not cosmos_client:
+            return jsonify({"error": "Cosmos DB not available"}), 503
+        
+        # Get database and statistics container
+        database = cosmos_client.get_database_client(COSMOS_DATABASE)
+        statistics_container = database.get_container_client('statistics')
+        
+        # Query for the most recent overall summary
+        query = """
+        SELECT TOP 1 * FROM c 
+        WHERE c.type = 'overall_summary' 
+        ORDER BY c.generated_at DESC
+        """
+        
+        summaries = list(statistics_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not summaries:
+            # No analytics data yet - return default values
+            return jsonify({
+                "total_sessions": 0,
+                "active_sessions_today": 0,
+                "avg_response_time": 0,
+                "success_rate": 0,
+                "total_escalations": 0,
+                "timestamp": datetime.now().isoformat(),
+                "message": "No analytics data available yet"
+            })
+        
+        latest_summary = summaries[0]
+        metrics = latest_summary.get('metrics', {})
+        
+        # Extract relevant metrics
+        volume_metrics = metrics.get('volume', {})
+        performance_metrics = metrics.get('performance', {})
+        breakdown = performance_metrics.get('breakdown', {})
+        
+        # Calculate active sessions today
+        # Query for today's conversations
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_query = """
+        SELECT COUNT(1) as count FROM c 
+        WHERE c.start_time >= @today_start
+        """
+        today_params = [{"name": "@today_start", "value": today_start.isoformat()}]
+        
+        conversations_container = database.get_container_client('conversations')
+        today_results = list(conversations_container.query_items(
+            query=today_query,
+            parameters=today_params,
+            enable_cross_partition_query=True
+        ))
+        
+        active_sessions_today = today_results[0]['count'] if today_results else 0
+        
+        # Build response
         summary = {
-            "total_sessions": 156,
-            "active_sessions_today": 23,
-            "avg_response_time": 2.4,
-            "success_rate": 0.78,
-            "total_escalations": 34,
-            "timestamp": datetime.now().isoformat()
+            "total_sessions": volume_metrics.get('unique_sessions', 0),
+            "active_sessions_today": active_sessions_today,
+            "avg_response_time": performance_metrics.get('avg_resolution_time_minutes', 0),
+            "success_rate": performance_metrics.get('success_rate', 0) / 100,  # Convert to decimal
+            "total_escalations": breakdown.get('escalated', 0),
+            "timestamp": latest_summary.get('generated_at', datetime.now().isoformat()),
+            "last_updated": latest_summary.get('generated_at', datetime.now().isoformat())
         }
+        
         return jsonify(summary)
+        
     except Exception as e:
         logger.error(f"Analytics summary error: {e}")
         return jsonify({"error": str(e)}), 500
