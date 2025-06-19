@@ -114,6 +114,9 @@ def _match_cases_with_llm(
     Use LLM to match user situation with cases
     """
     
+    # Build conversation context
+    conversation_context = _build_conversation_context(state)
+
     # Build case descriptions
     case_descriptions = []
     for i, case in enumerate(cases):
@@ -123,7 +126,7 @@ def _match_cases_with_llm(
 증상: {', '.join(case.get('symptoms', [])[:3])}""")
     
     prompt = config['conversation_flow']['case_narrowing']['case_matching_prompt'].format(
-        user_message=state['user_message'],
+        user_message=conversation_context,
         current_issue=state['current_issue'],
         case_descriptions=chr(10).join(case_descriptions)
     )
@@ -134,6 +137,9 @@ def _match_cases_with_llm(
     try:
         response = llm.invoke(prompt)
         result = json.loads(response.content.strip())
+
+        logger.info(f"Prompt for case matching: {prompt[:200]}...")  # Log first 200 chars of prompt
+        logger.info(f"LLM Response: {response.content[:200]}...")  # Log first 200 chars of response
         
         matched = []
         for match in result.get('matched_cases', []):
@@ -156,3 +162,22 @@ def _match_cases_with_llm(
         logger.error(f"Case matching error: {e}")
         state['error_flag'] = 'llm_error'  # ADD THIS
         return []
+    
+def _build_conversation_context(state: ChatbotState) -> str:
+    """
+    Build complete conversation context for condition checking
+    """
+    context_parts = ["대화 내용: "]
+    
+    # Add conversation history
+    if state.get('conversation_history'):
+        for turn in state['conversation_history'][-3:]:  # Last 3 turns
+            if turn.get('user'):
+                context_parts.append(f"사용자: {turn['user']}")
+            if turn.get('bot'):
+                context_parts.append(f"봇: {turn['bot']}")
+    
+    if state.get('user_message'):
+        context_parts.append(f"현재 사용자 메시지: {state['user_message']}")
+
+    return "\n".join(context_parts)

@@ -1,0 +1,244 @@
+[
+    {
+        "id": "oss_login_password_expired",
+        "issue_type": "oss_login_failure",
+        "issue_name": "OSS 로그인 문제",
+        "case_type": "password_expired",
+        "case_name": "Password Expired",
+        "description": "IDMS 비밀번호가 만료되어 OSS 로그인이 불가능한 상황",
+        "keywords": [
+            "비밀번호만료",
+            "password expired",
+            "로그인불가",
+            "IDMS비밀번호"
+        ],
+        "conditions": {
+            "idms_account_exists": "IDMS 계정이 존재하고 생성된 지 하루 이상 경과",
+            "idms_password_expired": "IDMS 비밀번호가 만료된 상태"
+        },
+        "questions_to_ask": [
+            "IDMS 계정은 이미 가지고 계신가요?",
+            "IDMS 계정을 만든 지 하루 이상 지났나요?",
+            "비밀번호가 만료되었다는 메시지를 보셨나요?"
+        ],
+        "solution_steps": [
+            "1. OSS 시스템은 IDMS 계정 관리 시스템과 LDAP로 동기화됩니다.",
+            "2. IDMS 비밀번호가 만료되었다면 IDMS 포털에서 재설정해야 합니다.",
+            "3. 새 비밀번호로 OSS 시스템에 로그인을 시도하세요."
+        ],
+        "escalation_triggers": [
+            "IDMS에서 비밀번호 재설정이 안 되는 경우",
+            "새 비밀번호로도 OSS 로그인이 안 되는 경우"
+        ],
+        "search_content": "OSS 로그인 문제 Password Expired 비밀번호만료 password expired 로그인불가 IDMS비밀번호 IDMS 비밀번호가 만료되어 OSS 로그인이 불가능한 상황"
+    },
+    {
+        "id": "oss_login_password_forgot",
+        "issue_type": "oss_login_failure",
+        "issue_name": "OSS 로그인 문제",
+        "case_type": "password_forgot",
+        "case_name": "Password Forgot",
+        "description": "IDMS 비밀번호를 잊어버려 OSS 로그인이 불가능한 상황",
+        "keywords": [
+            "비밀번호분실",
+            "비번잊음",
+            "forgot password",
+            "암호잊음",
+            "비밀번호모름"
+        ],
+        "conditions": {
+            "idms_account_exists": "IDMS 계정이 존재하고 생성된 지 하루 이상 경과",
+            "forgot_password": "비밀번호를 잊어버린 상태"
+        },
+        "questions_to_ask": [
+            "IDMS 계정은 이미 가지고 계신가요?",
+            "IDMS 계정을 만든 지 하루 이상 지났나요?",
+            "비밀번호를 잊어버리셨나요?"
+        ],
+        "solution_steps": [
+            "1. OSS 시스템은 IDMS 계정 관리 시스템과 LDAP로 동기화됩니다.",
+            "2. 비밀번호를 잊어버렸다면 IDMS 포털에서 \"비밀번호를 잊으셨나요?\" 메뉴를 이용하세요.",
+            "3. 새 비밀번호로 OSS 시스템에 로그인을 시도하세요."
+        ],
+        "escalation_triggers": [
+            "IDMS 비밀번호 찾기 기능이 작동하지 않는 경우",
+            "등록된 이메일이나 전화번호를 기억하지 못하는 경우"
+        ],
+        "search_content": "OSS 로그인 문제 Password Forgot 비밀번호분실 비번잊음 forgot password 암호잊음 비밀번호모름 IDMS 비밀번호를 잊어버려 OSS 로그인이 불가능한 상황"
+    },
+    {
+        "id": "oss_login_need_9sabun_account",
+        "issue_type": "oss_login_failure",
+        "issue_name": "OSS 로그인 문제",
+        "case_type": "need_9sabun_account",
+        "case_name": "Need 9사번 Account",
+        "description": "협력사 직원이나 그룹사 직원이 9사번 계정이 없어 OSS 로그인이 불가능한 상황",
+        "keywords": [
+            "9사번필요",
+            "협력사계정",
+            "8사번",
+            "그룹사직원",
+            "계정없음",
+            "IDMS가입"
+        ],
+        "conditions": {
+            "no_idms_account_or_8sabun_only": "협력사 직원으로 IDMS 계정이 없거나, 그룹사 직원으로 8사번 계정만 있는 상태",
+            "cannot_login_with_9sabun": "9사번 계정으로 OSS 로그인이 불가능한 상태"
+        },
+        "questions_to_ask": [
+            "협력사 직원이신가요, 아니면 그룹사 직원이신가요?",
+            "IDMS 계정을 가지고 계신가요?",
+            "8사번 계정만 가지고 계신가요?",
+            "9사번 계정이 있으신가요?"
+        ],
+        "solution_steps": [
+            "1. IDMS에 \"KT 협력사\"로 가입하세요 (그룹사 직원이어도 협력사로 가입).",
+            "2. OSS 시스템이 IDMS와 동기화될 때까지 하루 기다리세요.",
+            "3. 새로운 계정(9사번)으로 로그인하세요."
+        ],
+        "escalation_triggers": [
+            "IDMS 가입 과정에서 오류가 발생하는 경우",
+            "하루 이상 기다렸는데도 로그인이 안 되는 경우"
+        ],
+        "search_content": "OSS 로그인 문제 Need 9사번 Account 9사번필요 협력사계정 8사번 그룹사직원 계정없음 IDMS가입 협력사 직원이나 그룹사 직원이 9사번 계정이 없어 OSS 로그인이 불가능한 상황"
+    },
+    {
+        "id": "oss_login_need_wait_account_sync",
+        "issue_type": "oss_login_failure",
+        "issue_name": "OSS 로그인 문제",
+        "case_type": "need_wait_account_sync",
+        "case_name": "Need to Wait for Account Sync (Creation)",
+        "description": "IDMS 계정을 당일 생성하여 아직 OSS와 동기화되지 않은 상황",
+        "keywords": [
+            "계정동기화",
+            "당일생성",
+            "익일로그인",
+            "동기화대기",
+            "오늘가입"
+        ],
+        "conditions": {
+            "idms_account_created_today": "IDMS 계정이 오늘(로그인 시도 당일) 생성됨",
+            "cannot_login": "로그인할 수 없는 상태"
+        },
+        "questions_to_ask": [
+            "IDMS 계정을 오늘 만드셨나요?",
+            "계정 생성을 정확히 언제 하셨나요?",
+            "로그인을 시도했을 때 어떤 메시지가 나타났나요?"
+        ],
+        "solution_steps": [
+            "1. OSS는 하루에 한 번 IDMS와 동기화됩니다.",
+            "2. 다음 날까지 기다려야 로그인할 수 있습니다."
+        ],
+        "escalation_triggers": [
+            "긴급하게 당일 접속이 필요한 경우",
+            "익일에도 로그인이 안 되는 경우"
+        ],
+        "search_content": "OSS 로그인 문제 Need to Wait for Account Sync (Creation) 계정동기화 당일생성 익일로그인 동기화대기 오늘가입 IDMS 계정을 당일 생성하여 아직 OSS와 동기화되지 않은 상황"
+    },
+    {
+        "id": "oss_permission_need_team",
+        "issue_type": "oss_permission_request",
+        "issue_name": "OSS 권한 신청",
+        "case_type": "need_team",
+        "case_name": "Need Team",
+        "description": "업무팀이 없어 권한 신청을 할 수 없는 상황",
+        "keywords": [
+            "권한신청불가",
+            "팀없음",
+            "업무팀필요",
+            "팀신청방법",
+            "권한메뉴없음"
+        ],
+        "conditions": {
+            "cannot_apply_permissions": "권한을 신청할 수 없는 상태",
+            "no_team_assigned": "사용자에게 할당된 팀이 없음",
+            "doesnt_know_team_application": "업무팀 신청 방법을 모름"
+        },
+        "questions_to_ask": [
+            "권한 신청을 시도해보셨나요?",
+            "현재 소속된 업무팀이 있나요?",
+            "업무팀 신청 방법을 알고 계신가요?"
+        ],
+        "solution_steps": [
+            "1. OSS 시스템에 로그인하세요.",
+            "2. \"업무팀 신청\" 메뉴로 이동하여 신청하세요.",
+            "3. 팀장의 승인을 기다리세요.",
+            "4. 로그아웃 후 다시 로그인하여 권한 신청을 진행하세요."
+        ],
+        "escalation_triggers": [
+            "적절한 업무팀을 찾을 수 없는 경우",
+            "팀장 승인이 지연되는 경우"
+        ],
+        "search_content": "OSS 권한 신청 Need Team 권한신청불가 팀없음 업무팀필요 팀신청방법 권한메뉴없음 업무팀이 없어 권한 신청을 할 수 없는 상황"
+    },
+    {
+        "id": "oss_permission_need_permissions",
+        "issue_type": "oss_permission_request",
+        "issue_name": "OSS 권한 신청",
+        "case_type": "need_permissions",
+        "case_name": "Need Permissions",
+        "description": "업무팀은 승인되었으나 개별 권한이 없어 기능을 사용할 수 없는 상황",
+        "keywords": [
+            "권한없음",
+            "권한신청",
+            "팀승인완료",
+            "기능사용불가",
+            "권한부여필요"
+        ],
+        "conditions": {
+            "team_approved": "사용자가 업무팀 승인을 받은 상태",
+            "no_permissions_granted": "사용자에게 부여된 권한이 없음",
+            "doesnt_know_permission_application": "권한 신청 방법을 모름"
+        },
+        "questions_to_ask": [
+            "업무팀 가입은 승인받으셨나요?",
+            "현재 어떤 권한을 가지고 계신가요?",
+            "권한 신청 방법을 알고 계신가요?"
+        ],
+        "solution_steps": [
+            "1. OSS 시스템에 로그인하세요.",
+            "2. \"권한신청\" 메뉴로 이동하여 신청하세요.",
+            "3. 팀장의 승인을 기다리세요.",
+            "4. 로그아웃 후 다시 로그인하세요."
+        ],
+        "escalation_triggers": [
+            "권한 승인이 지연되는 경우",
+            "승인 후에도 권한이 반영되지 않는 경우"
+        ],
+        "search_content": "OSS 권한 신청 Need Permissions 권한없음 권한신청 팀승인완료 기능사용불가 권한부여필요 업무팀은 승인되었으나 개별 권한이 없어 기능을 사용할 수 없는 상황"
+    },
+    {
+        "id": "oss_permission_need_personal_info",
+        "issue_type": "oss_permission_request",
+        "issue_name": "OSS 권한 신청",
+        "case_type": "need_personal_info",
+        "case_name": "Need Personal Information Permissions",
+        "description": "개인정보 조회 권한이 없어 고객 정보가 마스킹 처리되는 상황",
+        "keywords": [
+            "개인정보권한",
+            "마스킹",
+            "암호화해제",
+            "개인정보조회",
+            "***처리"
+        ],
+        "conditions": {
+            "no_personal_info_permission": "개인정보암호화해제 권한이 없는 상태"
+        },
+        "questions_to_ask": [
+            "개인정보가 마스킹(***) 처리되어 보이나요?",
+            "개인정보 조회 권한을 신청한 적이 있나요?"
+        ],
+        "solution_steps": [
+            "1. OSS 시스템에 로그인하세요.",
+            "2. \"MyOSS\" → \"개인정보권한요청\" 메뉴로 이동하세요.",
+            "3. \"개인정보권한 / 개인정보암호화해제권한\"을 신청하세요.",
+            "4. 1차 및 2차 승인자의 승인을 기다리세요.",
+            "5. 로그아웃 후 다시 로그인하여 권한을 적용하세요."
+        ],
+        "escalation_triggers": [
+            "2차 승인자가 누구인지 모르는 경우",
+            "승인이 지연되는 경우"
+        ],
+        "search_content": "OSS 권한 신청 Need Personal Information Permissions 개인정보권한 마스킹 암호화해제 개인정보조회 ***처리 개인정보 조회 권한이 없어 고객 정보가 마스킹 처리되는 상황"
+    }
+]

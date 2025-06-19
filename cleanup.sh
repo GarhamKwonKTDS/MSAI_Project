@@ -6,8 +6,7 @@ echo "🧹 Starting cleanup..."
 # Detect which resource groups exist
 # ================================
 
-PROD_RESOURCE_GROUP_PREFIX="rg-oss-chatbot-dev"
-LOCAL_RESOURCE_GROUP_PREFIX="rg-oss-chatbot-local"
+RESOURCE_GROUP_PREFIX="rg-oss-chatbot-dev"
 FOUND_GROUPS=()
 
 echo "🔍 Checking for Azure resource groups..."
@@ -16,22 +15,13 @@ echo "🔍 Checking for Azure resource groups..."
 ALL_GROUPS=$(az group list --query "[].name" --output tsv 2>/dev/null || echo "")
 
 if [ -n "$ALL_GROUPS" ]; then
-    # Find groups starting with production prefix
-    PROD_GROUPS=$(echo "$ALL_GROUPS" | grep "^${PROD_RESOURCE_GROUP_PREFIX}" || true)
-    if [ -n "$PROD_GROUPS" ]; then
+    # Find groups starting with our prefix
+    MATCHING_GROUPS=$(echo "$ALL_GROUPS" | grep "^${RESOURCE_GROUP_PREFIX}" || true)
+    if [ -n "$MATCHING_GROUPS" ]; then
         while IFS= read -r group; do
-            echo "  ✓ Found production: $group"
+            echo "  ✓ Found resource group: $group"
             FOUND_GROUPS+=("$group")
-        done <<< "$PROD_GROUPS"
-    fi
-    
-    # Find groups starting with local prefix
-    LOCAL_GROUPS=$(echo "$ALL_GROUPS" | grep "^${LOCAL_RESOURCE_GROUP_PREFIX}" || true)
-    if [ -n "$LOCAL_GROUPS" ]; then
-        while IFS= read -r group; do
-            echo "  ✓ Found local: $group"
-            FOUND_GROUPS+=("$group")
-        done <<< "$LOCAL_GROUPS"
+        done <<< "$MATCHING_GROUPS"
     fi
 fi
 
@@ -78,40 +68,28 @@ echo ""
 echo "🧹 Cleaning up local files..."
 echo ""
 echo "The following will be removed:"
-echo "  - Deployment directories (deployment/, frontend_deployment/)"
+echo "  - Deployment directories (deployment_*, admin_*_deployment/)"
 echo "  - Deployment packages (*.zip)"
-echo "  - Environment files (.env, search-config.env)"
+echo "  - Environment files (.env, *.env, local.settings.json)"
 echo "  - Virtual environment (venv/)"
+echo "  - Configuration files (services-config.json, apps-config.json, local-dev-info.json)"
+echo "  - Development scripts (run-*.sh, test-*.sh)"
 echo "  - Log files (*.log)"
 echo "  - Python cache (__pycache__)"
 echo "  - Deployment info files (*deployment-info.json)"
-echo "  - Development scripts (run-local.sh, test-chat.sh)"
 echo ""
 read -p "Clean up local files? (y/n): " -n 1 -r
 echo
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     
-    # Remove deployment directories
-    if [ -d "deployment" ]; then
-        rm -rf deployment
-        echo "  ✅ Removed deployment/"
-    fi
-    
-    if [ -d "frontend_deployment" ]; then
-        rm -rf frontend_deployment
-        echo "  ✅ Removed frontend_deployment/"
-    fi
-
-    if [ -d "admin_backend_deployment" ]; then
-        rm -rf admin_backend_deployment
-        echo "  ✅ Removed admin_backend_deployment/"
-    fi
-
-    if [ -d "admin_frontend_deployment" ]; then
-        rm -rf admin_frontend_deployment
-        echo "  ✅ Removed admin_frontend_deployment/"
-    fi
+    # Remove all deployment directories
+    for dir in deployment deployment_* admin_*_deployment frontend_deployment backend_deployment; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            echo "  ✅ Removed $dir/"
+        fi
+    done
 
     # Remove zip files
     if ls *.zip 1> /dev/null 2>&1; then
@@ -119,16 +97,13 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "  ✅ Removed deployment zip files"
     fi
     
-    # Remove environment files
-    if [ -f ".env" ]; then
-        rm .env
-        echo "  ✅ Removed .env"
-    fi
-    
-    if [ -f "search-config.env" ]; then
-        rm search-config.env
-        echo "  ✅ Removed search-config.env"
-    fi
+    # Remove all environment files
+    for env_file in .env *.env local.settings.json; do
+        if [ -f "$env_file" ]; then
+            rm "$env_file"
+            echo "  ✅ Removed $env_file"
+        fi
+    done
     
     # Remove virtual environment
     if [ -d "venv" ]; then
@@ -146,37 +121,21 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     echo "  ✅ Removed Python cache directories"
     
-    # Remove deployment info files
-    if ls *deployment-info.json 1> /dev/null 2>&1; then
-        rm *deployment-info.json
-        echo "  ✅ Removed deployment info files"
-    fi
+    # Remove all config files
+    for config_file in services-config.json apps-config.json local-dev-info.json *deployment-info.json; do
+        if [ -f "$config_file" ]; then
+            rm "$config_file"
+            echo "  ✅ Removed $config_file"
+        fi
+    done
     
-    # Remove development scripts
-    if [ -f "run-local.sh" ]; then
-        rm run-local.sh
-        echo "  ✅ Removed run-local.sh"
-    fi
-
-    if [ -f "run-admin.sh" ]; then
-        rm run-admin.sh
-        echo "  ✅ Removed run-admin.sh"
-    fi
-
-    if [ -f "test-chat.sh" ]; then
-        rm test-chat.sh
-        echo "  ✅ Removed test-chat.sh"
-    fi
-
-    if [ -f "services-config.json" ]; then
-        rm services-config.json
-        echo "  ✅ Removed services-config.json"
-    fi
-
-    if [ -f "apps-config.json" ]; then
-        rm apps-config.json
-        echo "  ✅ Removed apps-config.json"
-    fi
+    # Remove all development scripts
+    for script in run-*.sh test-*.sh; do
+        if [ -f "$script" ]; then
+            rm "$script"
+            echo "  ✅ Removed $script"
+        fi
+    done
 
     echo ""
     echo "✅ Local files cleaned up"
@@ -189,27 +148,33 @@ fi
 # Check for running processes
 # ================================
 
-echo ""
-echo "🔍 Checking for running processes..."
+# echo ""
+# echo "🔍 Checking for running processes..."
 
-FLASK_PIDS=$(pgrep -f "python.*chatbot_backend/app.py" || true)
-NODE_PIDS=$(pgrep -f "node.*chatbot_frontend/server.js" || true)
+# # Check for any Python processes running app.py
+# PYTHON_PIDS=$(pgrep -f "python.*app.py" || true)
+# # Check for any Node processes running server.js
+# NODE_PIDS=$(pgrep -f "node.*server.js" || true)
+# # Check for Azure Functions
+# FUNC_PIDS=$(pgrep -f "func.*start" || true)
 
-if [ -n "$FLASK_PIDS" ] || [ -n "$NODE_PIDS" ]; then
-    echo "⚠️ Found running processes:"
-    [ -n "$FLASK_PIDS" ] && ps aux | grep "python.*app.py" | grep -v grep || true
-    [ -n "$NODE_PIDS" ] && ps aux | grep "node.*server.js" | grep -v grep || true
-    echo ""
-    read -p "Kill running processes? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        [ -n "$FLASK_PIDS" ] && echo "$FLASK_PIDS" | xargs kill -9 2>/dev/null || true
-        [ -n "$NODE_PIDS" ] && echo "$NODE_PIDS" | xargs kill -9 2>/dev/null || true
-        echo "✅ Stopped running processes"
-    fi
-else
-    echo "✅ No running processes found"
-fi
+# if [ -n "$PYTHON_PIDS" ] || [ -n "$NODE_PIDS" ] || [ -n "$FUNC_PIDS" ]; then
+#     echo "⚠️ Found running processes:"
+#     [ -n "$PYTHON_PIDS" ] && ps aux | grep "python.*app.py" | grep -v grep || true
+#     [ -n "$NODE_PIDS" ] && ps aux | grep "node.*server.js" | grep -v grep || true
+#     [ -n "$FUNC_PIDS" ] && ps aux | grep "func.*start" | grep -v grep || true
+#     echo ""
+#     read -p "Kill running processes? (y/n): " -n 1 -r
+#     echo
+#     if [[ $REPLY =~ ^[Yy]$ ]]; then
+#         [ -n "$PYTHON_PIDS" ] && echo "$PYTHON_PIDS" | xargs kill -9 2>/dev/null || true
+#         [ -n "$NODE_PIDS" ] && echo "$NODE_PIDS" | xargs kill -9 2>/dev/null || true
+#         [ -n "$FUNC_PIDS" ] && echo "$FUNC_PIDS" | xargs kill -9 2>/dev/null || true
+#         echo "✅ Stopped running processes"
+#     fi
+# else
+#     echo "✅ No running processes found"
+# fi
 
 # ================================
 # Summary
@@ -229,11 +194,8 @@ fi
 echo "✅ Local environment cleaned"
 echo ""
 echo "🚀 To set up again, run:"
-if [[ " ${FOUND_GROUPS[@]} " =~ " ${LOCAL_RESOURCE_GROUP} " ]]; then
-    echo "   ./deploy-local.sh  (for local development)"
-fi
-if [[ " ${FOUND_GROUPS[@]} " =~ " ${PROD_RESOURCE_GROUP} " ]]; then
-    echo "   ./deploy.sh       (for production)"
-fi
+echo "   1. ./deploy_services.sh    (to create Azure services)"
+echo "   2. ./deploy_apps.sh        (to deploy apps to Azure)"
+echo "   3. ./deploy_local.sh       (to set up local development)"
 echo ""
 echo "💡 Your source code is safe - only temporary files were removed"

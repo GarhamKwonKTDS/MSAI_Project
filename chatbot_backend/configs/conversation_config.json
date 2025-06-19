@@ -1,7 +1,7 @@
 {
     "conversation_flow": {
         "state_analysis": {
-            "topic_continuity_prompt": "다음 대화에서 사용자의 새 메시지가 기존 대화의 연속인지 판단하세요.\n\n현재 대화 상황:\n{context}\n\n사용자의 새 메시지: \"{user_message}\"\n\n판단 기준:\n- 같은 문제에 대한 추가 질문이나 답변인가?\n- 이전 솔루션에 대한 피드백인가?\n- 관련된 세부사항을 제공하는가?\n\nJSON 형식으로 응답:\n{{\"is_continuation\": true/false, \"reason\": \"판단 이유\"}}"
+            "topic_continuity_prompt": "다음 대화에서 사용자의 새 메시지가 기존 대화의 연속인지 판단하세요.\n\n현재 대화 상황:\n{context}\n\n사용자의 새 메시지: \"{user_message}\"\n\n판단 기준:\n- 질문에 대한 자연스러운 답변인가? (예, 아니오, 등은 같은 대화)\n- 관련 문제에 대해 추가 질문을 주었는가?\n- 관련된 세부사항을 제공하는가?\n\n실제로 새로운 주제를 언급할때만 새로운 대화로 판단하세요. 단답이거나 정보가 많이 없는 답변의 경우는 이전 대화의 연장선으로 판단하세요. (예시: 예, 아니오, 그런데요, 등등)\n\nJSON 형식으로 응답:\n{{\"is_continuation\": true/false, \"reason\": \"판단 이유\"}}"
         },
         "issue_classification": {
             "classification_prompt": "사용자가 시스템 문제를 겪고 있습니다. 사용자의 메시지 '{user_message}'를 바탕으로, 이것이 어떤 문제 카테고리에 해당하는지 결정하세요.\n\n{context_section}\n\n다음 JSON 형식으로 응답하세요:\n{{\n    \"issue_type\": \"가장 적합한 이슈 타입 또는 null\",\n    \"confidence\": 0.0-1.0 사이의 숫자,\n    \"reason\": \"분류 근거\"\n}}\n\n반드시 유효한 JSON 형식으로만 응답하세요.",
@@ -11,14 +11,14 @@
         },
         "case_narrowing": {
             "search_query_prompt": "다음 대화 내용을 바탕으로 Azure Search에서 관련 케이스를 찾기 위한 간결하고 핵심적인 검색 쿼리를 생성하세요.\n\n대화 내용:\n{context}\n\n검색 쿼리는:\n- 핵심 문제와 증상을 포함\n- 불필요한 단어 제거\n- 20단어 이내로 간결하게\n\nJSON 형식으로 응답:\n{{\"search_query\": \"생성된 검색 쿼리\"}}",
-            "case_matching_prompt": "사용자의 상황과 일치하는 케이스를 모두 선택하세요.\n\n사용자 상황: {user_message}\n현재 이슈: {current_issue}\n\n가능한 케이스들:\n{case_descriptions}\n\n각 케이스가 사용자 상황과 일치하는지 판단하고, 일치하는 케이스들만 선택하세요.\n\nJSON 형식으로 응답:\n{{\n    \"matched_cases\": [\n        {{\"case_number\": 1, \"case_id\": \"케이스ID\", \"confidence\": 0.9, \"reason\": \"일치 이유\"}},\n        ...\n    ]\n}}",
+            "case_matching_prompt": "사용자의 상황과 연관있는 케이스를 모두 선택하세요.\n\n사용자 상황: {user_message}\n현재 이슈: {current_issue}\n\n가능한 케이스들:\n{case_descriptions}\n\n각 케이스가 사용자 상황과 연관이 있는지 판단하고, 관련된 케이스들만 선택하세요.\n\nJSON 형식으로 응답:\n{{\n    \"matched_cases\": [\n        {{\"case_number\": 1, \"case_id\": \"케이스ID\", \"confidence\": 0.9, \"reason\": \"일치 이유\"}},\n        ...\n    ]\n}}",
             "information_gathering_strategy": "한 번에 하나의 집중된 질문을 하여 점진적으로 맥락을 구축하세요. 대화체 언어를 사용하고 왜 묻는지 설명하세요.",
             "confidence_threshold": 0.8,
             "max_questions_per_case": 4,
             "question_selection_strategy": "progressive"
         },
         "reply_formulation": {
-            "disambiguation_prompt": "사용자의 상황이 여러 가능한 케이스와 일치합니다.\n\n사용자 메시지: {user_message}\n\n가능한 케이스들:\n{case_descriptions}\n\n사용자가 어떤 케이스에 해당하는지 구분할 수 있는 명확하고 구체적인 질문을 하나만 생성하세요.\n- 한 번에 하나의 질문만\n- 예/아니오로 답할 수 있거나 간단히 답할 수 있는 질문\n- 친근하고 도움이 되는 톤\n\nJSON 형식으로 응답:\n{{\"question\": \"생성된 질문\"}}",
+            "disambiguation_prompt": "사용자의 상황이 여러 가능한 케이스와 일치합니다.\n\n대화 내용 : {conversation_history}\n\n가능한 케이스들:\n{case_descriptions}\n\n사용자가 어떤 케이스에 해당하는지 구분할 수 있는 명확하고 구체적인 질문을 하나만 생성하세요.\n- 한 번에 하나의 질문만\n- 예/아니오로 답할 수 있거나 간단히 답할 수 있는 질문\n- 대화 내역에 나오는 내용과 유사하거나 같은 질문은 하지 마세요.\n\nJSON 형식으로 응답:\n{{\"question\": \"생성된 질문\", \"reason\": \"질문의 이유\"}}",
             "solution_generation_prompt": "사용자가 '{case_name}' 문제를 겪고 있습니다.\n\n사용자 상황: {user_message}\n\n표준 해결 단계:\n{solution_steps}\n\n위 정보를 바탕으로 사용자의 상황에 맞는 친절하고 구체적인 해결 방법을 안내하세요.\n- 단계별로 명확하게 설명\n- 사용자가 이해하기 쉬운 언어 사용\n- 추가 도움이 필요한 경우 안내 포함\n\nJSON 형식으로 응답:\n{{\"response\": \"생성된 해결 방법 안내 메시지\"}}"
         },
         "common": {

@@ -102,7 +102,7 @@ class AzureSearchService:
                 search_fields=[
                     "case_name", 
                     "description", 
-                    "symptoms", 
+                    "conditions_json", 
                     "search_content",
                     "keywords"
                 ],
@@ -113,7 +113,7 @@ class AzureSearchService:
                     "case_type",
                     "case_name",
                     "description",
-                    "symptoms",
+                    "conditions_json",
                     "questions_to_ask",
                     "solution_steps",
                     "escalation_triggers"
@@ -131,7 +131,7 @@ class AzureSearchService:
                     'case_type': result.get('case_type'),
                     'case_name': result.get('case_name'),
                     'description': result.get('description'),
-                    'symptoms': result.get('symptoms', []),
+                    'conditions': self._parse_conditions(result.get('conditions_json')),
                     'questions_to_ask': result.get('questions_to_ask', []),
                     'solution_steps': result.get('solution_steps', []),
                     'escalation_triggers': result.get('escalation_triggers', []),
@@ -163,6 +163,9 @@ class AzureSearchService:
             
         try:
             result = self.client.get_document(key=case_id)
+            # Parse conditions if present
+            if result and 'conditions_json' in result:
+                result['conditions'] = self._parse_conditions(result.get('conditions_json'))
             return result
         except Exception as e:
             logger.error(f"❌ Error getting case {case_id}: {e}")
@@ -206,7 +209,7 @@ class AzureSearchService:
                 search_fields=[
                     "case_name", 
                     "description", 
-                    "symptoms", 
+                    "conditions_json", 
                     "search_content"
                 ],
                 select=[
@@ -214,7 +217,7 @@ class AzureSearchService:
                     "case_type",
                     "case_name", 
                     "description",
-                    "symptoms",
+                    "conditions_json",
                     "questions_to_ask",
                     "solution_steps"
                 ],
@@ -229,7 +232,7 @@ class AzureSearchService:
                     'case_type': result.get('case_type'),
                     'case_name': result.get('case_name'),
                     'description': result.get('description'),
-                    'symptoms': result.get('symptoms', []),
+                    'conditions': self._parse_conditions(result.get('conditions_json')),
                     'questions_to_ask': result.get('questions_to_ask', []),
                     'solution_steps': result.get('solution_steps', []),
                     'score': result.get('@search.score', 0.0),
@@ -262,10 +265,17 @@ class AzureSearchService:
         current_length = 0
         
         for i, case in enumerate(cases, 1):
+            #Generate Conditions Text
+            conditions_text = ""
+            conditions = case.get('conditions', {})
+            if conditions:
+                conditions_list = [f"- {v}" for v in conditions.values()]
+                conditions_text = f"조건: {', '.join(conditions_list[:2])}"
+
             case_context = f"""
 케이스 {i}: {case.get('case_name', 'Unknown')}
 설명: {case.get('description', '')}
-증상: {', '.join(case.get('symptoms', [])[:3])}
+조건: {conditions_text}
 해결방법: {' '.join(case.get('solution_steps', [])[:2])}
 """
             
@@ -336,3 +346,23 @@ class AzureSearchService:
         except Exception as e:
             logger.error(f"❌ Error getting related questions: {e}")
             return []
+    
+    def _parse_conditions(self, conditions_json: Optional[str]) -> Dict[str, str]:
+        """
+        Parse conditions from JSON string
+        
+        Args:
+            conditions_json: JSON string of conditions
+            
+        Returns:
+            Dict[str, str]: Parsed conditions or empty dict
+        """
+        if not conditions_json:
+            return {}
+        
+        try:
+            import json
+            return json.loads(conditions_json)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse conditions JSON")
+            return {}

@@ -60,10 +60,6 @@ class StreamHandler:
                 # Update existing state with new message
                 initial_state = existing_state.copy()
                 initial_state['user_message'] = user_message
-                initial_state['conversation_history'].append({
-                    "role": "user",
-                    "content": user_message
-                })
                 initial_state['conversation_turn'] = initial_state.get('conversation_turn', 0) + 1
             else:
                 # Create new initial state

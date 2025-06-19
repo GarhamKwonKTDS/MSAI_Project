@@ -119,6 +119,9 @@ def _generate_disambiguation_question(state: ChatbotState, matched_cases: List[D
     """
     
     try:
+        # Build conversation context for LLM
+        conversation_context = _build_conversation_context(state)
+        
         # Build case descriptions
         case_descriptions = []
         for i, case in enumerate(matched_cases[:3], 1):  # Limit to top 3
@@ -129,7 +132,7 @@ def _generate_disambiguation_question(state: ChatbotState, matched_cases: List[D
             )
 
         prompt = config['conversation_flow']['reply_formulation']['disambiguation_prompt'].format(
-            user_message=state['user_message'],
+            conversation_history=conversation_context,
             case_descriptions='\n'.join(case_descriptions)
         )
 
@@ -138,6 +141,10 @@ def _generate_disambiguation_question(state: ChatbotState, matched_cases: List[D
 
         response = llm.invoke(prompt)
         result = json.loads(response.content.strip())
+
+        logger.info(f"Prompt for disambiguation: {prompt[:200]}...")  # Log first 200 chars of prompt
+        logger.info(f"LLM Response: {response.content[:200]}...") 
+
         return result.get('question', config['fallback_responses']['need_more_info'])
     except Exception as e:
         logger.error(f"Disambiguation question generation error: {e}")
@@ -175,3 +182,22 @@ def _generate_solution_response(state: ChatbotState, case_details: Dict[str, Any
         logger.error(f"Solution generation error: {e}")
         # Fallback to showing standard solution steps
         return f"{case_name} 문제 해결 방법:\n\n" + "\n".join([f"{i+1}. {step}" for i, step in enumerate(solution_steps)])
+    
+def _build_conversation_context(state: ChatbotState) -> str:
+    """
+    Build complete conversation context for condition checking
+    """
+    context_parts = ["대화 내용: "]
+    
+    # Add conversation history
+    if state.get('conversation_history'):
+        for turn in state['conversation_history'][-3:]:  # Last 3 turns
+            if turn.get('user'):
+                context_parts.append(f"사용자: {turn['user']}")
+            if turn.get('bot'):
+                context_parts.append(f"봇: {turn['bot']}")
+    
+    if state.get('user_message'):
+        context_parts.append(f"현재 사용자 메시지: {state['user_message']}")
+
+    return "\n".join(context_parts)
