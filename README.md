@@ -137,6 +137,11 @@ KT OSS-OM(Operation Support System - Order Management)을 위한 포괄적인 �
 
 -   State_Analysis → Request_Handler
 
+## 발표 자료
+
+-   **데모 영상**: https://drive.google.com/drive/folders/1wwdB5R0oTGd7uLqf2L07bqXJMPYkyAA6?usp=sharing
+-   **발표 자료**: https://www.miricanvas.com/v/14s4he3
+
 ## 📞 지원 및 문의
 
 프로젝트 관련 문의사항이나 기술 지원이 필요한 경우 OSS개발2팀 권가람 전임에게 연락해 주세요.
