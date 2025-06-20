@@ -1,0 +1,25 @@
+{
+  "resource_group": "rg-oss-chatbot-dev-0619-1923",
+  "app_service_plan": "plan-oss-0619-1923",
+  "chatbot": {
+    "backend": {
+      "name": "backend-oss-0619-1923",
+      "url": "https://backend-oss-0619-1923.azurewebsites.net"
+    },
+    "frontend": {
+      "name": "frontend-oss-0619-1923",
+      "url": "https://frontend-oss-0619-1923.azurewebsites.net"
+    }
+  },
+  "admin": {
+    "backend": {
+      "name": "admin-backend-oss-0619-1923",
+      "url": "https://admin-backend-oss-0619-1923.azurewebsites.net"
+    },
+    "frontend": {
+      "name": "admin-frontend-oss-0619-1923",
+      "url": "https://admin-frontend-oss-0619-1923.azurewebsites.net"
+    }
+  },
+  "deployed_at": "2025-06-19T17:27:07Z"
+}
